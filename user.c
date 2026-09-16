@@ -8,7 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define DSIP "193.136.138.142"
+#define DSIP "tejo.tecnico.ulisboa.pt"
 #define DSPORT "59000"
 
 int send_recieve_udp(const char* dsip, char* dsport, const char* message, char* response, size_t response_size) {
@@ -20,7 +20,10 @@ int send_recieve_udp(const char* dsip, char* dsport, const char* message, char* 
 
     //starting UDP socket
     fd= socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd==-1) return -1; /*error*/
+    if (fd==-1) {
+        printf("Error creating socket\n");
+        return -1;
+    }
 
     // setting up the hints for getaddrinfo
     memset(&hints, 0, sizeof(hints));
@@ -31,17 +34,20 @@ int send_recieve_udp(const char* dsip, char* dsport, const char* message, char* 
     errcode=getaddrinfo(dsip, dsport, &hints, &res);
     if (errcode!=0) {
         close(fd);
+        printf("erro a obter o endereço do servidor.\n");
         return -1; 
-        /*error*/
     }
+
+    printf("A enviar a mensagem: %s\n", message);
 
     // sending the message to the server
     n = sendto(fd, message, strlen(message), 0, res->ai_addr, res->ai_addrlen);
     if (n==-1) {
+        perror("sendto");
         freeaddrinfo(res);
         close(fd);
+        printf("erro a enviar a mensagem.\n");
         return -1;
-        /*error*/
     }
 
     // receiving the response from the server
@@ -50,8 +56,8 @@ int send_recieve_udp(const char* dsip, char* dsport, const char* message, char* 
     if (n==-1) {
         freeaddrinfo(res);
         close(fd);
+        printf("erro a receber a resposta.\n");
         return -1; 
-        /*error*/
     }
 
     response[n] = '\0'; // Null-terminate the response
@@ -63,7 +69,99 @@ int send_recieve_udp(const char* dsip, char* dsport, const char* message, char* 
 }
 
 int main(int argc, char *argv[]) {
-    char dsip[16] = DSIP;
+    char dsip[30] = DSIP;
+    char dsport[6] = DSPORT;
+    int tcpport = 0;
+    int opt;
+
+    // Leitura correta dos argumentos com getopt: ./user -m peerport [-n DSIP] [-p DSport][cite: 1]
+    while ((opt = getopt(argc, argv, "m:n:p:")) != -1) {
+        switch (opt) {
+            case 'm':
+                tcpport = atoi(optarg);
+                break;
+            case 'n':
+                strncpy(dsip, optarg, sizeof(dsip) - 1);
+                break;
+            case 'p':
+                strncpy(dsport, optarg, sizeof(dsport) - 1);
+                break;
+            default:
+                fprintf(stderr, "Uso: %s -m peerport [-n DSIP] [-p DSport]\n", argv[0]);
+                exit(1);
+        }
+    }
+
+    if (tcpport <= 0) {
+        fprintf(stderr, "Erro: O argumento -m <peerport> e obrigatorio.\n");
+        exit(1);
+    }
+
+    char input[128];
+    char command[20]; // Aumentado para evitar estouro de memória!
+    char uid_str[10];
+    char password[20];
+
+    while (1) {
+        printf("> ");
+        fflush(stdout);
+        
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            break;
+        }
+
+        if (sscanf(input, "%19s", command) != 1) {
+            continue;
+        }
+
+        // O utilizador digita "login UID password" no terminal[cite: 1]
+        if (strcmp(command, "login") == 0) {
+            if (sscanf(input, "%*s %9s %19s", uid_str, password) == 2) {
+                char msg[128];
+                char response[128];
+
+                printf("A preparar para fazer login do utilizador: %s\n", uid_str);
+                // Protocolo: LIN UID password peerTCPport\n[cite: 1]
+                snprintf(msg, sizeof(msg), "LIN %s %s %d\n", uid_str, password, tcpport);
+                
+                if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+                    if (strncmp(response, "RLI OK", 6) == 0) {
+                        printf("Login efetuado com sucesso.\n");
+                    } else if (strncmp(response, "RLI NOK", 7) == 0) {
+                        printf("Tentativa de login incorreta.\n");
+                    } else if (strncmp(response, "RLI REG", 7) == 0) {
+                        printf("Novo utilizador registado.\n");
+                    } else {
+                        printf("Resposta do servidor: %s", response);
+                    }
+                }
+
+            } else {
+                printf("Erro de sintaxe. Uso correto: login UID password\n");
+            }
+            
+        } else if (strcmp(command, "logout") == 0) {
+            printf("A preparar logout...\n");
+            // TODO: Implementar envio de 'LOU UID password\n'[cite: 1]
+            
+        } else if (strcmp(command, "unregister") == 0) {
+            printf("A preparar unregister...\n");
+            // TODO: Implementar envio de 'UNR UID password\n'[cite: 1]
+            
+        } else if (strcmp(command, "exit") == 0) {
+            printf("A sair da aplicacao...\n");
+            break;
+            
+        } else {
+            printf("Comando desconhecido. Comandos disponiveis: login, logout, unregister, exit\n");
+        }
+    }
+
+    return 0;
+}
+
+/*int main(int argc, char *argv[]) {
+    char dsip[30] = DSIP;
     char dsport[6] = DSPORT;
     int tcpport;
 
@@ -90,21 +188,21 @@ int main(int argc, char *argv[]) {
         }
 
         // Lê a primeira palavra para a variável 'command'
-        if (sscanf(input, "%2s", command) != 1) {
+        if (sscanf(input, "%3s", command) != 1) {
             continue; // Se o utilizador apenas carregou no Enter, ignora e pede de novo
         }
 
         // Compara o comando lido com os comandos válidos
         if (strcmp(command, "LIN") == 0) {
             // O login precisa do UID (6 dígitos) e da password (8 caracteres)
-            if (sscanf(input, "%*s %9s %19s", uid_str, password) == 2) {
+            if (sscanf(input, "%*s %6s %8s", uid_str, password) == 2) {
                 char msg[128];
                 char response[128];
 
                 printf("A preparar para fazer login do utilizador: %s\n", uid_str);
-                snprintf(msg, sizeof(msg), "LIN %s %s %d", uid_str, password, tcpport);
+                snprintf(msg, sizeof(msg), "LIN %s %s %d\n", uid_str, password, tcpport);
                 send_recieve_udp(dsip, dsport, msg, response, sizeof(response));
-
+                
                 if (strncmp(response, "RLI OK", 6) == 0) {
                     printf("successeful login.\n");
                 } else if (strncmp(response, "RLI NOK", 7) == 0) {
@@ -151,3 +249,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+*/
