@@ -116,7 +116,6 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // login
         if (strcmp(command, "login") == 0) {
             if (sscanf(input, "%*s %9s %19s", uid, password) == 2) {
                 char msg[128];
@@ -135,10 +134,10 @@ int main(int argc, char *argv[]) {
                         session_state = LOGGED_IN;
                         printf("new user registered.\n");
                     }
+                    else if (strncmp(response, "RLI ERR", 7) == 0) {
+                        printf("sintax error in login.\n");
+                    }
                 }
-                
-            } else {
-                printf("Sintax error. Correct syntax: login UID password\n");
             }
             
         } else if (strcmp(command, "logout") == 0) {
@@ -162,25 +161,44 @@ int main(int argc, char *argv[]) {
                 } else if (strncmp(response, "RLO NLG", 7) == 0) {
                     printf("user not logged in.\n");
                 } else if (strncmp(response, "RLO WRP", 7) == 0) {
-                    // ???
+                    printf("incorrect logout attempt.\n");
                     printf("incorrect password.\n");
+                } else if (strncmp(response, "RLO ERR", 7) == 0) {
+                    printf("sintax error in logout.\n");
                 }
             }
             
         } else if (strcmp(command, "unregister") == 0) {
-            printf("A preparar unregister...\n");
-            // TODO: Implementar envio de 'UNR UID password\n'[cite: 1]
+            char msg[128];
+            char response[128];
+
+            snprintf(msg, sizeof(msg), "UNR %s %s\n", uid, password);
+
+            if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+                if (strncmp(response, "RUR OK", 6) == 0) {
+                    session_state = LOGGED_OUT;
+                    printf("successful unregister.\n");
+                } else if (strncmp(response, "RUR NOK", 7) == 0) {
+                    printf("user not logged in.\n");
+                } else if (strncmp(response, "RUR UNR", 7) == 0) {
+                    printf("unknown user.\n");
+                } else if (strncmp(response, "RUR WRP", 7) == 0) {
+                    printf("incorrect unregister attempt.\n");
+                } else if (strncmp(response, "RUR ERR", 7) == 0) {
+                    printf("sintax error in unregister.\n");
+                }
+            }
             
         } else if (strcmp(command, "exit") == 0) {
-            // printf("exiting...\n");
             if (session_state == LOGGED_OUT) {
+                // printf("exiting...\n");
                 break;
             } else {
                 printf("Please logout first.\n");
             }
             
         } else {
-            printf("Comando desconhecido. Comandos disponiveis: login, logout, unregister, exit\n");
+            printf("Unknown command. Available commands: login, logout, unregister, exit\n");
         }
     }
 
