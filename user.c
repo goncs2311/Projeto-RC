@@ -144,15 +144,15 @@ int main(int argc, char *argv[]) {
             char msg[128];
             char response[128];
 
-            // Protocolo: LOU UID password
-            snprintf(msg, sizeof(msg), "LOU %s %s\n", uid, password);
-            // receber uid/password do terminal???
-
-            //VERIFICAR SE ESTA CERTO 
+            //TODO: VERIFICAR SE ESTA CERTO 
             if (session_state == LOGGED_OUT) {
                 printf("user not logged in.\n");
                 continue;
             }
+            
+            // Protocolo: LOU UID password
+            snprintf(msg, sizeof(msg), "LOU %s %s\n", uid, password);
+            //TODO: receber uid/password do terminal???            
             
             if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
                 if (strncmp(response, "RLO OK", 6) == 0) {
