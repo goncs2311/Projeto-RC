@@ -70,6 +70,68 @@ int send_recieve_udp(const char* dsip, const char* dsport, const char* message, 
     return 0;
 }
 
+int send_recieve_tcp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
+    int fd, errcode;
+    ssize_t n;
+    socklen_t addrlen;
+    struct addrinfo hints, *res;    // hints are the address info from the user, res is the address info from the server
+    struct sockaddr_in addr;    // address from whoever sent the message (server or client)
+
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1) {
+        printf("Error creating socket\n");
+        return -1;
+    }
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    errcode = getaddrinfo(dsip, dsport, &hints, &res);
+    if (errcode != 0) {
+        close(fd);
+        printf("Error getting server address.\n");
+        return -1; 
+    }
+
+    n = connect(fd, res->ai_addr, res->ai_addrlen);
+    if (n == -1) {
+        perror("connect");
+        freeaddrinfo(res);
+        close(fd);
+        printf("Error connecting to server.\n");
+        return -1; 
+    }
+
+    n = write(fd, message, strlen(message));
+    if (n == -1) {
+        perror("write");
+        freeaddrinfo(res);
+        close(fd);
+        printf("Error sending message.\n");
+        return -1; 
+    }
+
+    n = read(fd, response, response_size - 1);
+    if (n == -1) {
+        perror("read");
+        freeaddrinfo(res);
+        close(fd);
+        printf("Error receiving response.\n");
+        return -1; 
+    }
+
+    response[n] = '\0';
+
+    // é necessário???
+    write(1, response, n); // write the response to stdout
+
+    freeaddrinfo(res);
+    close(fd);
+
+    return 0;
+}
+
 int valid_filename(const char *filename) {
     int len = strlen(filename);
 
@@ -324,6 +386,10 @@ void handle_list(const char *dsip, const char *dsport) {
     }
 }
 
+void handle_versions(const char *uid, const char *password, const char *filename, const char *dsip, const char *dsport, int *session_state) {
+    //TODO
+}
+
 int main(int argc, char *argv[]) {
     char dsip[30] = DSIP;
     char dsport[6] = DSPORT;
@@ -398,6 +464,10 @@ int main(int argc, char *argv[]) {
             }
         } else if (strcmp(command, "list") == 0) {
             handle_list(dsip, dsport);
+        } else if (strcmp(command, "versions") == 0) {
+            if (sscanf(input, "%*s %127s", filename) == 1) {
+                handle_versions(uid, password, filename, dsip, dsport, &session_state);
+            }
         } else {
             printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list\n");
         }
