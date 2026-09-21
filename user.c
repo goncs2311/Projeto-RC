@@ -102,6 +102,8 @@ int main(int argc, char *argv[]) {
     char command[20]; 
     char uid[10];
     char password[20];
+    char filename[128];
+    char label[128];
     int session_state = LOGGED_OUT;
 
     while (1) {
@@ -116,6 +118,7 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        // Phase I
         if (strcmp(command, "login") == 0) {
             if (sscanf(input, "%*s %9s %19s", uid, password) == 2) {
                 char msg[128];
@@ -161,7 +164,6 @@ int main(int argc, char *argv[]) {
                 } else if (strncmp(response, "RLO NLG", 7) == 0) {
                     printf("user not logged in.\n");
                 } else if (strncmp(response, "RLO WRP", 7) == 0) {
-                    printf("incorrect logout attempt.\n");
                     printf("incorrect password.\n");
                 } else if (strncmp(response, "RLO ERR", 7) == 0) {
                     printf("sintax error in logout.\n");
@@ -196,7 +198,44 @@ int main(int argc, char *argv[]) {
             } else {
                 printf("Please logout first.\n");
             }
-            
+        } else  if (strcmp(command, "publish") == 0) {
+            if (sscanf(input, "%*s %127s %127s", filename, label) == 2) {
+                char msg[512];
+                char response[128];
+                FILE *file;
+
+                // check if file exists in directory
+                file = fopen(filename, "r");
+                if (file == NULL) {
+                    printf("file not found.\n");
+                    continue;
+                }
+                fclose(file);
+
+                // get file size
+                file = fopen(filename, "r");
+                fseek(file, 0, SEEK_END);
+                int fsize = ftell(file);
+                fclose(file);
+
+                snprintf(msg, sizeof(msg), "PUB %s %s %s %d %s\n", uid, password, filename, fsize, label);
+
+                if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+                    if (strncmp(response, "RPB OK", 6) == 0) {
+                        printf("successful publication.\n");
+                    } else if (strncmp(response, "RPB NLG", 7) == 0) {
+                        printf("user not logged in.\n");
+                    } else if (strncmp(response, "RPB UNR", 7) == 0) {
+                        printf("user not registered.\n");
+                    } else if (strncmp(response, "RPB WRP", 7) == 0) {
+                        printf("incorrect password.\n");
+                    } else if (strncmp(response, "RPB NOK", 7) == 0) {
+                        printf("unsuccessful publication.\n");
+                    } else if (strncmp(response, "RPB ERR", 7) == 0) {
+                        printf("syntax error in publish.\n");
+                    }
+                }
+            }
         } else {
             printf("Unknown command. Available commands: login, logout, unregister, exit\n");
         }
