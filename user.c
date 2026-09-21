@@ -15,7 +15,7 @@
 #define LOGGED_OUT 0
 #define LOGGED_IN 1
 
-int send_recieve_udp(const char* dsip, char* dsport, const char* message, char* response, size_t response_size) {
+int send_recieve_udp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
     int fd, errcode;
     ssize_t n;
     socklen_t addrlen;
@@ -127,6 +127,203 @@ int valid_label(const char *label) {
     return 1;
 }
 
+void handle_login(const char *uid, const char *password, int tcpport, const char *dsip, const char *dsport, int *session_state) {
+    char msg[128];
+    char response[128];
+
+    snprintf(msg, sizeof(msg), "LIN %s %s %d\n", uid, password, tcpport);
+
+    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+        if (strncmp(response, "RLI OK", 6) == 0) {
+            *session_state = LOGGED_IN;
+            printf("Successful login.\n");
+        } else if (strncmp(response, "RLI NOK", 7) == 0) {
+            printf("Incorrect login attempt.\n");
+        } else if (strncmp(response, "RLI REG", 7) == 0) {
+            *session_state = LOGGED_IN;
+            printf("New user registered.\n");
+        } else if (strncmp(response, "RLI ERR", 7) == 0) {
+            printf("Syntax error in login.\n");
+        }
+    }
+}
+
+void handle_logout(const char *uid, const char *password, const char *dsip, const char *dsport, int *session_state) {
+    char msg[128];
+    char response[128];
+
+    //TODO: VERIFICAR SE ESTA CERTO 
+    if (*session_state == LOGGED_OUT) {
+        printf("User not logged in.\n");
+        return;
+    }
+    
+    // Protocolo: LOU UID password
+    snprintf(msg, sizeof(msg), "LOU %s %s\n", uid, password);
+    //TODO: receber uid/password do terminal???            
+    
+    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+        if (strncmp(response, "RLO OK", 6) == 0) {
+            *session_state = LOGGED_OUT;
+            printf("Successful logout.\n");
+        } else if (strncmp(response, "RLO NLG", 7) == 0) {
+            printf("User not logged in.\n");
+        } else if (strncmp(response, "RLO WRP", 7) == 0) {
+            printf("Incorrect password.\n");
+        } else if (strncmp(response, "RLO UNR", 7) == 0) {
+            printf("User not registered.\n");
+        } else if (strncmp(response, "RLO ERR", 7) == 0) {
+            printf("Sintax error in logout.\n");
+        }
+    }
+}
+
+void handle_unregister(const char *uid, const char *password, const char *dsip, const char *dsport, int *session_state) {
+    char msg[128];
+    char response[128];
+
+    snprintf(msg, sizeof(msg), "UNR %s %s\n", uid, password);
+
+    if (*session_state == LOGGED_OUT) {
+        printf("User not logged in.\n");
+        return;
+    }
+
+    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+        if (strncmp(response, "RUR OK", 6) == 0) {
+            *session_state = LOGGED_OUT;
+            printf("Successful unregister.\n");
+        } else if (strncmp(response, "RUR NOK", 7) == 0) {
+            printf("User not logged in.\n");
+        } else if (strncmp(response, "RUR UNR", 7) == 0) {
+            printf("Unknown user.\n");
+        } else if (strncmp(response, "RUR WRP", 7) == 0) {
+            printf("Incorrect unregister attempt.\n");
+        } else if (strncmp(response, "RUR ERR", 7) == 0) {
+            printf("Sintax error in unregister.\n");
+        }
+    }
+}
+
+void handle_publish(const char *uid, const char *password, const char *filename, const char *label, const char *dsip, const char *dsport, int *session_state) {
+    char msg[512];
+    char response[128];
+    FILE *file;
+
+    // Validate filename
+    if (!valid_filename(filename)) {
+        printf("Invalid filename.\n");
+        return;
+    }
+
+    // Validate label
+    if (!valid_label(label)) {
+        printf("Invalid label.\n");
+        return;
+    }
+
+    // check if file exists in directory
+    file = fopen(filename, "rb");
+
+    if (file == NULL) {
+        printf("File not found.\n");
+        return;
+    }
+
+    // get file size
+    fseek(file, 0, SEEK_END);
+    long fsize = ftell(file);
+    fclose(file);
+
+    //check file size
+    if (fsize > 10000000) {
+        printf("File is too long.\n");
+        return;
+    }
+
+    if (*session_state == LOGGED_OUT) {
+        printf("User not logged in.\n");
+        return;
+    }
+
+    snprintf(msg, sizeof(msg), "PUB %s %s %s %ld %s\n", uid, password, filename, fsize, label);
+
+    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+        if (strncmp(response, "RPB OK", 6) == 0) {
+            printf("Successful publication.\n");
+        } else if (strncmp(response, "RPB NLG", 7) == 0) {
+            printf("User not logged in.\n");
+        } else if (strncmp(response, "RPB UNR", 7) == 0) {
+            printf("User not registered.\n");
+        } else if (strncmp(response, "RPB WRP", 7) == 0) {
+            printf("Incorrect password.\n");
+        } else if (strncmp(response, "RPB NOK", 7) == 0) {
+            printf("Unsuccessful publication.\n");
+        } else if (strncmp(response, "RPB ERR", 7) == 0) {
+            printf("Syntax error in publish.\n");
+        }
+    }
+}
+
+void handle_remove(const char *uid, const char *password, const char *filename, const char *dsip, const char *dsport, int *session_state) {
+    char msg[512];
+    char response[128];
+
+    // Validate filename
+    if (!valid_filename(filename)) {
+        printf("Invalid filename.\n");
+        return;
+    }
+
+    if (*session_state == LOGGED_OUT) {
+        printf("User not logged in.\n");
+        return;
+    }
+
+    snprintf(msg, sizeof(msg), "REM %s %s %s\n", uid, password, filename);
+
+    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+        if (strncmp(response, "RRM OK", 6) == 0) {
+            printf("Successful removal.\n");
+        } else if (strncmp(response, "RRM NLG", 7) == 0) {
+            printf("User not logged in.\n");
+        } else if (strncmp(response, "RRM UNR", 7) == 0) {
+            printf("User not registered.\n");
+        } else if (strncmp(response, "RRM WRP", 7) == 0) {
+            printf("Incorrect password.\n");
+        } else if (strncmp(response, "RRM NOK", 7) == 0) {
+            printf("Resource not found.\n");
+        } else if (strncmp(response, "RRM ERR", 7) == 0) {
+            printf("Syntax error in remove.\n");
+        }
+    }
+}
+
+void handle_list(const char *dsip, const char *dsport) {
+    char msg[128];
+    char response[512];
+
+    snprintf(msg, sizeof(msg), "LST\n");
+
+    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+        if (strncmp(response, "RLS OK", 6) == 0) {
+            printf("List of resources:\n");
+
+            char *resources = response + 7;
+            char *token = strtok(resources, " \n");
+
+            while (token != NULL) {
+                printf("%s\n", token);
+                token = strtok(NULL, " \n");
+            }
+        } else if (strncmp(response, "RLS NOK", 7) == 0) {
+            printf("No resources available.\n");
+        } else if (strncmp(response, "RLS ERR", 7) == 0) {
+            printf("Syntax error in list.\n");
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
     char dsip[30] = DSIP;
     char dsport[6] = DSPORT;
@@ -179,207 +376,28 @@ int main(int argc, char *argv[]) {
         // Phase I
         if (strcmp(command, "login") == 0) {
             if (sscanf(input, "%*s %9s %19s", uid, password) == 2) {
-                char msg[128];
-                char response[128];
-
-                // Protocolo: LIN UID password peerTCPport\n
-                snprintf(msg, sizeof(msg), "LIN %s %s %d\n", uid, password, tcpport);
-                
-                if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
-                    if (strncmp(response, "RLI OK", 6) == 0) {
-                        session_state = LOGGED_IN;
-                        printf("Successeful login.\n");
-                    } else if (strncmp(response, "RLI NOK", 7) == 0) {
-                        printf("Incorrect login attempt.\n");
-                    } else if (strncmp(response, "RLI REG", 7) == 0) {
-                        session_state = LOGGED_IN;
-                        printf("New user registered.\n");
-                    }
-                    else if (strncmp(response, "RLI ERR", 7) == 0) {
-                        printf("Sintax error in login.\n");
-                    }
-                }
+                handle_login(uid, password, tcpport, dsip, dsport, &session_state);
             }
-            
         } else if (strcmp(command, "logout") == 0) {
-            char msg[128];
-            char response[128];
-
-            //TODO: VERIFICAR SE ESTA CERTO 
-            if (session_state == LOGGED_OUT) {
-                printf("User not logged in.\n");
-                continue;
-            }
-            
-            // Protocolo: LOU UID password
-            snprintf(msg, sizeof(msg), "LOU %s %s\n", uid, password);
-            //TODO: receber uid/password do terminal???            
-            
-            if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
-                if (strncmp(response, "RLO OK", 6) == 0) {
-                    session_state = LOGGED_OUT;
-                    printf("Successful logout.\n");
-                } else if (strncmp(response, "RLO NLG", 7) == 0) {
-                    printf("User not logged in.\n");
-                } else if (strncmp(response, "RLO WRP", 7) == 0) {
-                    printf("Incorrect password.\n");
-                } else if (strncmp(response, "RLO UNR", 7) == 0) {
-                    printf("User not registered.\n");
-                } else if (strncmp(response, "RLO ERR", 7) == 0) {
-                    printf("Sintax error in logout.\n");
-                }
-            }
-            
+            handle_logout(uid, password, dsip, dsport, &session_state);
         } else if (strcmp(command, "unregister") == 0) {
-            char msg[128];
-            char response[128];
-
-            snprintf(msg, sizeof(msg), "UNR %s %s\n", uid, password);
-
-            if (session_state == LOGGED_OUT) {
-                printf("User not logged in.\n");
-                continue;
-            }
-
-            if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
-                if (strncmp(response, "RUR OK", 6) == 0) {
-                    session_state = LOGGED_OUT;
-                    printf("Successful unregister.\n");
-                } else if (strncmp(response, "RUR NOK", 7) == 0) {
-                    printf("User not logged in.\n");
-                } else if (strncmp(response, "RUR UNR", 7) == 0) {
-                    printf("Unknown user.\n");
-                } else if (strncmp(response, "RUR WRP", 7) == 0) {
-                    printf("Incorrect unregister attempt.\n");
-                } else if (strncmp(response, "RUR ERR", 7) == 0) {
-                    printf("Sintax error in unregister.\n");
-                }
-            }
-            
+            handle_unregister(uid, password, dsip, dsport, &session_state);
         } else if (strcmp(command, "exit") == 0) {
             if (session_state == LOGGED_OUT) {
-                // printf("exiting...\n");
                 break;
             } else {
                 printf("Please logout first.\n");
             }
         } else  if (strcmp(command, "publish") == 0) {
             if (sscanf(input, "%*s %127s %127s", filename, label) == 2) {
-                char msg[512];
-                char response[128];
-                FILE *file;
-
-                // Validate filename
-                if (!valid_filename(filename)) {
-                    printf("Invalid filename.\n");
-                    continue;
-                }
-
-                // Validate label
-                if (!valid_label(label)) {
-                    printf("Invalid label.\n");
-                    continue;
-                }
-
-                // check if file exists in directory
-                file = fopen(filename, "rb");
-
-                if (file == NULL) {
-                    printf("File not found.\n");
-                    continue;
-                }
-
-                // get file size
-                fseek(file, 0, SEEK_END);
-                long fsize = ftell(file);
-                fclose(file);
-
-                //check file size
-                if (fsize > 10000000) {
-                    printf("File is too long.\n");
-                    continue;
-                }
-
-                if (session_state == LOGGED_OUT) {
-                    printf("User not logged in.\n");
-                    continue;
-                }
-
-                snprintf(msg, sizeof(msg), "PUB %s %s %s %ld %s\n", uid, password, filename, fsize, label);
-
-                if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
-                    if (strncmp(response, "RPB OK", 6) == 0) {
-                        printf("Successful publication.\n");
-                    } else if (strncmp(response, "RPB NLG", 7) == 0) {
-                        printf("User not logged in.\n");
-                    } else if (strncmp(response, "RPB UNR", 7) == 0) {
-                        printf("User not registered.\n");
-                    } else if (strncmp(response, "RPB WRP", 7) == 0) {
-                        printf("Incorrect password.\n");
-                    } else if (strncmp(response, "RPB NOK", 7) == 0) {
-                        printf("Unsuccessful publication.\n");
-                    } else if (strncmp(response, "RPB ERR", 7) == 0) {
-                        printf("Syntax error in publish.\n");
-                    }
-                }
+                handle_publish(uid, password, filename, label, dsip, dsport, &session_state);
             }
         } else if (strcmp(command, "remove") == 0) {
             if (sscanf(input, "%*s %127s", filename) == 1) {
-                char msg[512];
-                char response[128];
-
-                // Validate filename
-                if (!valid_filename(filename)) {
-                    printf("Invalid filename.\n");
-                    continue;
-                }
-
-                if (session_state == LOGGED_OUT) {
-                    printf("User not logged in.\n");
-                    continue;
-                }
-
-                snprintf(msg, sizeof(msg), "REM %s %s %s\n", uid, password, filename);
-
-                if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
-                    if (strncmp(response, "RRM OK", 6) == 0) {
-                        printf("Successful removal.\n");
-                    } else if (strncmp(response, "RRM NLG", 7) == 0) {
-                        printf("User not logged in.\n");
-                    } else if (strncmp(response, "RRM UNR", 7) == 0) {
-                        printf("User not registered.\n");
-                    } else if (strncmp(response, "RRM WRP", 7) == 0) {
-                        printf("Incorrect password.\n");
-                    } else if (strncmp(response, "RRM NOK", 7) == 0) {
-                        printf("Resource not found.\n");
-                    } else if (strncmp(response, "RRM ERR", 7) == 0) {
-                        printf("Syntax error in remove.\n");
-                    }
-                }
+                handle_remove(uid, password, filename, dsip, dsport, &session_state);
             }
         } else if (strcmp(command, "list") == 0) {
-            char msg[128];
-            char response[512];
-
-            snprintf(msg, sizeof(msg), "LST\n");
-
-            if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
-                if (strncmp(response, "RLS OK", 6) == 0) {
-                    printf("List of resources:\n");
-
-                    char *resources = response + 7;
-                    char *token = strtok(resources, " \n");
-
-                    while (token != NULL) {
-                        printf("%s\n", token);
-                        token = strtok(NULL, " \n");
-                    }
-                } else if (strncmp(response, "RLS NOK", 7) == 0) {
-                    printf("No resources available.\n");
-                } else if (strncmp(response, "RLS ERR", 7) == 0) {
-                    printf("Syntax error in list.\n");
-                }
-            }
+            handle_list(dsip, dsport);
         } else {
             printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list\n");
         }
