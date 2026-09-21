@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <ctype.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -69,6 +70,63 @@ int send_recieve_udp(const char* dsip, char* dsport, const char* message, char* 
     return 0;
 }
 
+int valid_filename(const char *filename) {
+    int len = strlen(filename);
+
+    // Maximum 24 characters
+    if (len > 24) {
+        return 0;
+    }
+
+    // Find the dot
+    const char *dot = strrchr(filename, '.');
+    if (dot == NULL) {
+        return 0;
+    }
+    if (dot == filename) {
+        return 0;
+    }
+
+    // Extension must have exactly 3 characters
+    if (strlen(dot + 1) != 3) {
+        return 0;
+    }
+
+    // Check filename base
+    for (const char *p = filename; p < dot; p++) {
+        if (!isalnum(*p) && *p != '-' && *p != '_') {
+            return 0;
+        }
+    }
+
+    // Check extension
+    for (const char *p = dot + 1; *p != '\0'; p++) {
+        if (!isalnum(*p)) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+int valid_label(const char *label) {
+    int len = strlen(label);
+
+    // Length must be between 1 and 20
+    if (len < 1 || len > 20) {
+        return 0;
+    }
+
+    // Only letters, digits, '-' and '_'
+    for (int i = 0; i < len; i++) {
+        if (!isalnum(label[i]) && label[i] != '-' && label[i] != '_') {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
     char dsip[30] = DSIP;
     char dsport[6] = DSPORT;
@@ -103,7 +161,7 @@ int main(int argc, char *argv[]) {
     char uid[10];
     char password[20];
     char filename[128];
-    char label[128];
+    char label[21];
     int session_state = LOGGED_OUT;
 
     while (1) {
@@ -165,6 +223,8 @@ int main(int argc, char *argv[]) {
                     printf("user not logged in.\n");
                 } else if (strncmp(response, "RLO WRP", 7) == 0) {
                     printf("incorrect password.\n");
+                } else if (strncmp(response, "RLO UNR", 7) == 0) {
+                    printf("user not registered.\n");
                 } else if (strncmp(response, "RLO ERR", 7) == 0) {
                     printf("sintax error in logout.\n");
                 }
@@ -175,6 +235,11 @@ int main(int argc, char *argv[]) {
             char response[128];
 
             snprintf(msg, sizeof(msg), "UNR %s %s\n", uid, password);
+
+            if (session_state == LOGGED_OUT) {
+                printf("user not logged in.\n");
+                continue;
+            }
 
             if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
                 if (strncmp(response, "RUR OK", 6) == 0) {
@@ -204,21 +269,43 @@ int main(int argc, char *argv[]) {
                 char response[128];
                 FILE *file;
 
+                // Validate filename
+                if (!valid_filename(filename)) {
+                    printf("invalid filename.\n");
+                    continue;
+                }
+
+                // Validate label
+                if (!valid_label(label)) {
+                    printf("invalid label.\n");
+                    continue;
+                }
+
                 // check if file exists in directory
-                file = fopen(filename, "r");
+                file = fopen(filename, "rb");
+
                 if (file == NULL) {
                     printf("file not found.\n");
                     continue;
                 }
-                fclose(file);
 
                 // get file size
-                file = fopen(filename, "r");
                 fseek(file, 0, SEEK_END);
-                int fsize = ftell(file);
+                long fsize = ftell(file);
                 fclose(file);
 
-                snprintf(msg, sizeof(msg), "PUB %s %s %s %d %s\n", uid, password, filename, fsize, label);
+                //check file size
+                if (fsize > 10000000) {
+                    printf("file is too long.\n");
+                    continue;
+                }
+
+                if (session_state == LOGGED_OUT) {
+                    printf("user not logged in.\n");
+                    continue;
+                }
+
+                snprintf(msg, sizeof(msg), "PUB %s %s %s %ld %s\n", uid, password, filename, fsize, label);
 
                 if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
                     if (strncmp(response, "RPB OK", 6) == 0) {
@@ -234,6 +321,63 @@ int main(int argc, char *argv[]) {
                     } else if (strncmp(response, "RPB ERR", 7) == 0) {
                         printf("syntax error in publish.\n");
                     }
+                }
+            }
+        } else if (strcmp(command, "remove") == 0) {
+            if (sscanf(input, "%*s %127s", filename) == 1) {
+                char msg[512];
+                char response[128];
+
+                // Validate filename
+                if (!valid_filename(filename)) {
+                    printf("invalid filename.\n");
+                    continue;
+                }
+
+                if (session_state == LOGGED_OUT) {
+                    printf("user not logged in.\n");
+                    continue;
+                }
+
+                snprintf(msg, sizeof(msg), "REM %s %s %s\n", uid, password, filename);
+
+                if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+                    if (strncmp(response, "RRM OK", 6) == 0) {
+                        printf("successful removal.\n");
+                    } else if (strncmp(response, "RRM NLG", 7) == 0) {
+                        printf("user not logged in.\n");
+                    } else if (strncmp(response, "RRM UNR", 7) == 0) {
+                        printf("user not registered.\n");
+                    } else if (strncmp(response, "RRM WRP", 7) == 0) {
+                        printf("incorrect password.\n");
+                    } else if (strncmp(response, "RRM NOK", 7) == 0) {
+                        printf("resource not found.\n");
+                    } else if (strncmp(response, "RRM ERR", 7) == 0) {
+                        printf("syntax error in remove.\n");
+                    }
+                }
+            }
+        } else if (strcmp(command, "list") == 0) {
+            char msg[128];
+            char response[512];
+
+            snprintf(msg, sizeof(msg), "LST\n");
+
+            if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+                if (strncmp(response, "RLS OK", 6) == 0) {
+                    printf("List of resources:\n");
+
+                    char *resources = response + 7;
+                    char *token = strtok(resources, " \n");
+
+                    while (token != NULL) {
+                        printf("%s\n", token);
+                        token = strtok(NULL, " \n");
+                    }
+                } else if (strncmp(response, "RLS NOK", 7) == 0) {
+                    printf("No resources available.\n");
+                } else if (strncmp(response, "RLS ERR", 7) == 0) {
+                    printf("syntax error in list.\n");
                 }
             }
         } else {
