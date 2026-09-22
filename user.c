@@ -73,9 +73,7 @@ int send_recieve_udp(const char* dsip, const char* dsport, const char* message, 
 int send_recieve_tcp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
     int fd, errcode;
     ssize_t n;
-    socklen_t addrlen;
     struct addrinfo hints, *res;    // hints are the address info from the user, res is the address info from the server
-    struct sockaddr_in addr;    // address from whoever sent the message (server or client)
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd == -1) {
@@ -386,7 +384,7 @@ void handle_list(const char *dsip, const char *dsport) {
     }
 }
 
-void handle_versions(const char *filename, const char *dsip, const char *dsport, int *session_state) {
+void handle_versions(const char *filename, const char *dsip, const char *dsport) {
     char msg[512];
     char response[512];
 
@@ -505,7 +503,7 @@ int main(int argc, char *argv[]) {
             handle_list(dsip, dsport);
         } else if (strcmp(command, "versions") == 0) {
             if (sscanf(input, "%*s %127s", filename) == 1) {
-                handle_versions(filename, dsip, dsport, &session_state);
+                handle_versions(filename, dsip, dsport);
             }
         } else {
             printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list, versions\n");
