@@ -17,7 +17,7 @@
 #define LOGGED_OUT 0
 #define LOGGED_IN 1
 
-int send_recieve_udp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
+int send_receive_udp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
     int fd, errcode;
     ssize_t n;
     socklen_t addrlen;
@@ -72,7 +72,7 @@ int send_recieve_udp(const char* dsip, const char* dsport, const char* message, 
     return 0;
 }
 
-int send_recieve_tcp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
+int send_receive_tcp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
     int fd, errcode;
     ssize_t n;
     struct addrinfo hints, *res;    // hints are the address info from the user, res is the address info from the server
@@ -206,7 +206,7 @@ void handle_login(const char *input, char *uid, char *password, int tcpport, con
 
     snprintf(msg, sizeof(msg), "LIN %s %s %d\n", uid, password, tcpport);
 
-    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RLI OK", 6) == 0) {
             *session_state = LOGGED_IN;
             printf("Successful login.\n");
@@ -233,7 +233,7 @@ void handle_logout(const char *uid, const char *password, const char *dsip, cons
     // Protocolo: LOU UID password
     snprintf(msg, sizeof(msg), "LOU %s %s\n", uid, password);         
     
-    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RLO OK", 6) == 0) {
             *session_state = LOGGED_OUT;
             printf("Successful logout.\n");
@@ -260,7 +260,7 @@ void handle_unregister(const char *uid, const char *password, const char *dsip, 
         return;
     }
 
-    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RUR OK", 6) == 0) {
             *session_state = LOGGED_OUT;
             printf("Successful unregister.\n");
@@ -325,7 +325,7 @@ void handle_publish(const char *input, const char *uid, const char *password, ch
 
     snprintf(msg, sizeof(msg), "PUB %s %s %s %ld %s\n", uid, password, filename, fsize, label);
 
-    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RPB OK", 6) == 0) {
             printf("Successful publication.\n");
         } else if (strncmp(response, "RPB NLG", 7) == 0) {
@@ -365,7 +365,7 @@ void handle_remove(const char *input, const char *uid, const char *password, cha
 
     snprintf(msg, sizeof(msg), "REM %s %s %s\n", uid, password, filename);
 
-    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RRM OK", 6) == 0) {
             printf("Successful removal.\n");
         } else if (strncmp(response, "RRM NLG", 7) == 0) {
@@ -388,7 +388,7 @@ void handle_list(const char *dsip, const char *dsport) {
 
     snprintf(msg, sizeof(msg), "LST\n");
 
-    if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RLS OK", 6) == 0) {
             printf("List of resources:\n");
 
@@ -424,7 +424,7 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
 
     snprintf(msg, sizeof(msg), "VRS %s\n", filename);
 
-    if (send_recieve_tcp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_tcp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RVR OK", 6) == 0) {
             printf("Versions of the resource:\n");
 
