@@ -386,7 +386,7 @@ void handle_list(const char *dsip, const char *dsport) {
     }
 }
 
-void handle_versions(const char *uid, const char *password, const char *filename, const char *dsip, const char *dsport, int *session_state) {
+void handle_versions(const char *filename, const char *dsip, const char *dsport, int *session_state) {
     char msg[512];
     char response[512];
 
@@ -415,9 +415,9 @@ void handle_versions(const char *uid, const char *password, const char *filename
                 if (strcmp(token, "AVL") == 0) {
                     printf("Available\n");
                 } else if (strcmp(token, "NAV") == 0) {
-                    printf("Not Available\n");
+                    printf("Not available\n");
                 } else {
-                    printf("%s\n", token);
+                    printf("%s ", token);
                 }
 
                 token = strtok(NULL, " \n");
@@ -479,7 +479,6 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // Phase I
         if (strcmp(command, "login") == 0) {
             if (sscanf(input, "%*s %9s %19s", uid, password) == 2) {
                 handle_login(uid, password, tcpport, dsip, dsport, &session_state);
@@ -506,7 +505,7 @@ int main(int argc, char *argv[]) {
             handle_list(dsip, dsport);
         } else if (strcmp(command, "versions") == 0) {
             if (sscanf(input, "%*s %127s", filename) == 1) {
-                handle_versions(uid, password, filename, dsip, dsport, &session_state);
+                handle_versions(filename, dsip, dsport, &session_state);
             }
         } else {
             printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list, versions\n");
