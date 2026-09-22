@@ -9,7 +9,9 @@
 #include <string.h>
 #include <stdio.h>
 
-#define DSIP "tejo.tecnico.ulisboa.pt"
+// IP do lab: 192.168.1.1
+// IP fora do lab: tejo.tecnico.ulisboa.pt
+#define DSIP "193.136.138.142"
 #define DSPORT "59000"
 
 #define LOGGED_OUT 0
@@ -197,6 +199,11 @@ void handle_login(const char *input, char *uid, char *password, int tcpport, con
         return;
     }
 
+    if (*session_state == LOGGED_IN) {
+        printf("User already logged in.\n");
+        return;
+    }
+
     snprintf(msg, sizeof(msg), "LIN %s %s %d\n", uid, password, tcpport);
 
     if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
@@ -218,15 +225,13 @@ void handle_logout(const char *uid, const char *password, const char *dsip, cons
     char msg[128];
     char response[128];
 
-    //TODO: VERIFICAR SE ESTA CERTO 
     if (*session_state == LOGGED_OUT) {
         printf("User not logged in.\n");
         return;
     }
     
     // Protocolo: LOU UID password
-    snprintf(msg, sizeof(msg), "LOU %s %s\n", uid, password);
-    //TODO: receber uid/password do terminal???            
+    snprintf(msg, sizeof(msg), "LOU %s %s\n", uid, password);         
     
     if (send_recieve_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RLO OK", 6) == 0) {
@@ -416,13 +421,6 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
         printf("Invalid filename.\n");
         return;
     }
-
-    //TODO: perguntar professora
-    /*
-    if (*session_state == LOGGED_OUT) {
-        printf("User not logged in.\n");
-        return;
-    }*/
 
     snprintf(msg, sizeof(msg), "VRS %s\n", filename);
 
