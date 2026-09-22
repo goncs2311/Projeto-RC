@@ -124,7 +124,7 @@ int send_recieve_tcp(const char* dsip, const char* dsport, const char* message, 
     response[n] = '\0';
 
     // é necessário???
-    write(1, response, n); // write the response to stdout
+    //write(1, response, n); // write the response to stdout
 
     freeaddrinfo(res);
     close(fd);
@@ -387,7 +387,47 @@ void handle_list(const char *dsip, const char *dsport) {
 }
 
 void handle_versions(const char *uid, const char *password, const char *filename, const char *dsip, const char *dsport, int *session_state) {
-    //TODO
+    char msg[512];
+    char response[512];
+
+    if (!valid_filename(filename)) {
+        printf("Invalid filename.\n");
+        return;
+    }
+
+    //TODO: perguntar professora
+    /*
+    if (*session_state == LOGGED_OUT) {
+        printf("User not logged in.\n");
+        return;
+    }*/
+
+    snprintf(msg, sizeof(msg), "VRS %s\n", filename);
+
+    if (send_recieve_tcp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+        if (strncmp(response, "RVR OK", 6) == 0) {
+            printf("Versions of the resource:\n");
+
+            char *versions = response + 7;
+            char *token = strtok(versions, " \n");
+
+            while (token != NULL) {
+                if (strcmp(token, "AVL") == 0) {
+                    printf("Available\n");
+                } else if (strcmp(token, "NAV") == 0) {
+                    printf("Not Available\n");
+                } else {
+                    printf("%s\n", token);
+                }
+
+                token = strtok(NULL, " \n");
+            }
+        } else if (strncmp(response, "RVR NOK", 7) == 0) {
+            printf("No peer available for such resource: %s.\n", filename);
+        } else if (strncmp(response, "RVR ERR", 7) == 0) {
+            printf("Syntax error in versions.\n");
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -469,7 +509,7 @@ int main(int argc, char *argv[]) {
                 handle_versions(uid, password, filename, dsip, dsport, &session_state);
             }
         } else {
-            printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list\n");
+            printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list, versions\n");
         }
     }
 
