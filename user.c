@@ -187,9 +187,15 @@ int valid_label(const char *label) {
     return 1;
 }
 
-void handle_login(const char *uid, const char *password, int tcpport, const char *dsip, const char *dsport, int *session_state) {
+void handle_login(const char *input, char *uid, char *password, int tcpport, const char *dsip, const char *dsport, int *session_state) {
     char msg[128];
     char response[128];
+    char extra[2];
+
+    if (sscanf(input, "%*s %9s %19s %1s", uid, password, extra) != 2) {
+        printf("Syntax error in login.\n");
+        return;
+    }
 
     snprintf(msg, sizeof(msg), "LIN %s %s %d\n", uid, password, tcpport);
 
@@ -265,10 +271,16 @@ void handle_unregister(const char *uid, const char *password, const char *dsip, 
     }
 }
 
-void handle_publish(const char *uid, const char *password, const char *filename, const char *label, const char *dsip, const char *dsport, int *session_state) {
+void handle_publish(const char *input, const char *uid, const char *password, char *filename, char *label, const char *dsip, const char *dsport, int *session_state) {
     char msg[512];
     char response[128];
+    char extra[2];
     FILE *file;
+
+    if (sscanf(input, "%*s %127s %127s %1s", filename, label, extra) != 2) {
+        printf("Syntax error in publish.\n");
+        return;
+    }
 
     // Validate filename
     if (!valid_filename(filename)) {
@@ -325,9 +337,15 @@ void handle_publish(const char *uid, const char *password, const char *filename,
     }
 }
 
-void handle_remove(const char *uid, const char *password, const char *filename, const char *dsip, const char *dsport, int *session_state) {
+void handle_remove(const char *input, const char *uid, const char *password, char *filename, const char *dsip, const char *dsport, int *session_state) {
     char msg[512];
     char response[128];
+    char extra[2];
+
+    if (sscanf(input, "%*s %127s %1s", filename, extra) != 1) {
+        printf("Syntax error in remove.\n");
+        return;
+    }
 
     // Validate filename
     if (!valid_filename(filename)) {
@@ -384,9 +402,15 @@ void handle_list(const char *dsip, const char *dsport) {
     }
 }
 
-void handle_versions(const char *filename, const char *dsip, const char *dsport) {
+void handle_versions(const char *input, char *filename, const char *dsip, const char *dsport) {
     char msg[512];
     char response[512];
+    char extra[2];
+
+    if (sscanf(input, "%*s %127s %1s", filename, extra) != 1) {
+        printf("Syntax error in versions.\n");
+        return;
+    }
 
     if (!valid_filename(filename)) {
         printf("Invalid filename.\n");
@@ -478,9 +502,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (strcmp(command, "login") == 0) {
-            if (sscanf(input, "%*s %9s %19s", uid, password) == 2) {
-                handle_login(uid, password, tcpport, dsip, dsport, &session_state);
-            }
+            handle_login(input, uid, password, tcpport, dsip, dsport, &session_state);
         } else if (strcmp(command, "logout") == 0) {
             handle_logout(uid, password, dsip, dsport, &session_state);
         } else if (strcmp(command, "unregister") == 0) {
@@ -492,19 +514,13 @@ int main(int argc, char *argv[]) {
                 printf("Please logout first.\n");
             }
         } else  if (strcmp(command, "publish") == 0) {
-            if (sscanf(input, "%*s %127s %127s", filename, label) == 2) {
-                handle_publish(uid, password, filename, label, dsip, dsport, &session_state);
-            }
+            handle_publish(input, uid, password, filename, label, dsip, dsport, &session_state);
         } else if (strcmp(command, "remove") == 0) {
-            if (sscanf(input, "%*s %127s", filename) == 1) {
-                handle_remove(uid, password, filename, dsip, dsport, &session_state);
-            }
+            handle_remove(input, uid, password, filename, dsip, dsport, &session_state);
         } else if (strcmp(command, "list") == 0) {
             handle_list(dsip, dsport);
         } else if (strcmp(command, "versions") == 0) {
-            if (sscanf(input, "%*s %127s", filename) == 1) {
-                handle_versions(filename, dsip, dsport);
-            }
+            handle_versions(input, filename, dsip, dsport);
         } else {
             printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list, versions\n");
         }
