@@ -1,193 +1,7 @@
-#include <unistd.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <ctype.h>
-#include <string.h>
+#include "handlers.h"
+
 #include <stdio.h>
-
-// IP do lab: 192.168.1.1
-// IP fora do lab: tejo.tecnico.ulisboa.pt
-#define DSIP "193.136.138.142"
-#define DSPORT "59000"
-
-#define LOGGED_OUT 0
-#define LOGGED_IN 1
-
-int send_receive_udp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
-    int fd, errcode;
-    ssize_t n;
-    socklen_t addrlen;
-    struct addrinfo hints, *res;    // hints are the address info from the user, res is the address info from the server
-    struct sockaddr_in addr;    // address from whoever sent the message (server or client)
-
-    //starting UDP socket
-    fd= socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd==-1) {
-        printf("Error creating socket\n");
-        return -1;
-    }
-
-    // setting up the hints for getaddrinfo
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family=AF_INET;
-    hints.ai_socktype=SOCK_DGRAM;
-
-    //getting the server address
-    errcode=getaddrinfo(dsip, dsport, &hints, &res);
-    if (errcode!=0) {
-        close(fd);
-        printf("erro a obter o endereço do servidor.\n");
-        return -1; 
-    }
-
-    // sending the message to the server
-    n = sendto(fd, message, strlen(message), 0, res->ai_addr, res->ai_addrlen);
-    if (n==-1) {
-        perror("sendto");
-        freeaddrinfo(res);
-        close(fd);
-        printf("erro a enviar a mensagem.\n");
-        return -1;
-    }
-
-    // receiving the response from the server
-    addrlen=sizeof(addr);
-    n = recvfrom(fd, response, response_size - 1, 0, (struct sockaddr*)&addr, &addrlen);
-    if (n==-1) {
-        freeaddrinfo(res);
-        close(fd);
-        printf("erro a receber a resposta.\n");
-        return -1; 
-    }
-
-    response[n] = '\0';
-
-    freeaddrinfo(res);
-    close(fd);
-
-    return 0;
-}
-
-int send_receive_tcp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
-    int fd, errcode;
-    ssize_t n;
-    struct addrinfo hints, *res;    // hints are the address info from the user, res is the address info from the server
-
-    fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd == -1) {
-        printf("Error creating socket\n");
-        return -1;
-    }
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-
-    errcode = getaddrinfo(dsip, dsport, &hints, &res);
-    if (errcode != 0) {
-        close(fd);
-        printf("Error getting server address.\n");
-        return -1; 
-    }
-
-    n = connect(fd, res->ai_addr, res->ai_addrlen);
-    if (n == -1) {
-        perror("connect");
-        freeaddrinfo(res);
-        close(fd);
-        printf("Error connecting to server.\n");
-        return -1; 
-    }
-
-    n = write(fd, message, strlen(message));
-    if (n == -1) {
-        perror("write");
-        freeaddrinfo(res);
-        close(fd);
-        printf("Error sending message.\n");
-        return -1; 
-    }
-
-    n = read(fd, response, response_size - 1);
-    if (n == -1) {
-        perror("read");
-        freeaddrinfo(res);
-        close(fd);
-        printf("Error receiving response.\n");
-        return -1; 
-    }
-
-    response[n] = '\0';
-
-    // é necessário???
-    //write(1, response, n); // write the response to stdout
-
-    freeaddrinfo(res);
-    close(fd);
-
-    return 0;
-}
-
-int valid_filename(const char *filename) {
-    int len = strlen(filename);
-
-    // Maximum 24 characters
-    if (len > 24) {
-        return 0;
-    }
-
-    // Find the dot
-    const char *dot = strrchr(filename, '.');
-    if (dot == NULL) {
-        return 0;
-    }
-    if (dot == filename) {
-        return 0;
-    }
-
-    // Extension must have exactly 3 characters
-    if (strlen(dot + 1) != 3) {
-        return 0;
-    }
-
-    // Check filename base
-    for (const char *p = filename; p < dot; p++) {
-        if (!isalnum(*p) && *p != '-' && *p != '_') {
-            return 0;
-        }
-    }
-
-    // Check extension
-    for (const char *p = dot + 1; *p != '\0'; p++) {
-        if (!isalnum(*p)) {
-            return 0;
-        }
-    }
-
-    return 1;
-}
-
-int valid_label(const char *label) {
-    int len = strlen(label);
-
-    // Length must be between 1 and 20
-    if (len < 1 || len > 20) {
-        return 0;
-    }
-
-    // Only letters, digits, '-' and '_'
-    for (int i = 0; i < len; i++) {
-        if (!isalnum(label[i]) && label[i] != '-' && label[i] != '_') {
-            return 0;
-        }
-    }
-
-    return 1;
-}
+#include <string.h>
 
 void handle_login(const char *input, char *uid, char *password, int tcpport, const char *dsip, const char *dsport, int *session_state) {
     char msg[128];
@@ -426,19 +240,27 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
 
     if (send_receive_tcp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RVR OK", 6) == 0) {
-            printf("Versions of the resource:\n");
-
-            char *versions = response + 7;
+             char *versions = response + 7;
             char *token = strtok(versions, " \n");
 
+            printf("%-8s %-10s %-12s %-22s %s\n",
+                "UID", "FSize", "Label", "Publication Time", "Status");
+
             while (token != NULL) {
-                if (strcmp(token, "AVL") == 0) {
-                    printf("Available\n");
-                } else if (strcmp(token, "NAV") == 0) {
-                    printf("Not available\n");
-                } else {
-                    printf("%s ", token);
+
+                char *uid = token;
+                char *fsize = strtok(NULL, " \n");
+                char *label = strtok(NULL, " \n");
+                char *publication_time = strtok(NULL, " \n");
+                char *availability = strtok(NULL, " \n");
+
+                if (fsize == NULL || label == NULL ||
+                    publication_time == NULL || availability == NULL) {
+                    break;
                 }
+
+                printf("%-8s %-10s %-12s %-22s %s\n",
+                    uid, fsize, label, publication_time, availability);
 
                 token = strtok(NULL, " \n");
             }
@@ -448,81 +270,4 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
             printf("Syntax error in versions.\n");
         }
     }
-}
-
-int main(int argc, char *argv[]) {
-    char dsip[30] = DSIP;
-    char dsport[6] = DSPORT;
-    int tcpport = 0;
-    int opt;
-
-    // Leitura dos argumentos: ./user -m peerport [-n DSIP] [-p DSport]
-    while ((opt = getopt(argc, argv, "m:n:p:")) != -1) {
-        switch (opt) {
-            case 'm':
-                tcpport = atoi(optarg);
-                break;
-            case 'n':
-                strncpy(dsip, optarg, sizeof(dsip) - 1);
-                break;
-            case 'p':
-                strncpy(dsport, optarg, sizeof(dsport) - 1);
-                break;
-            default:
-                fprintf(stderr, "Uso: %s -m peerport [-n DSIP] [-p DSport]\n", argv[0]);
-                exit(1);
-        }
-    }
-
-    if (tcpport <= 0) {
-        fprintf(stderr, "Erro: O argumento -m <peerport> e obrigatorio.\n");
-        exit(1);
-    }
-
-    char input[128];
-    char command[20]; 
-    char uid[10];
-    char password[20];
-    char filename[128];
-    char label[21];
-    int session_state = LOGGED_OUT;
-
-    while (1) {
-        printf("> ");
-        fflush(stdout); 
-        
-        if (fgets(input, sizeof(input), stdin) == NULL) {
-            break;
-        }
-
-        if (sscanf(input, "%19s", command) != 1) {
-            continue;
-        }
-
-        if (strcmp(command, "login") == 0) {
-            handle_login(input, uid, password, tcpport, dsip, dsport, &session_state);
-        } else if (strcmp(command, "logout") == 0) {
-            handle_logout(uid, password, dsip, dsport, &session_state);
-        } else if (strcmp(command, "unregister") == 0) {
-            handle_unregister(uid, password, dsip, dsport, &session_state);
-        } else if (strcmp(command, "exit") == 0) {
-            if (session_state == LOGGED_OUT) {
-                break;
-            } else {
-                printf("Please logout first.\n");
-            }
-        } else  if (strcmp(command, "publish") == 0) {
-            handle_publish(input, uid, password, filename, label, dsip, dsport, &session_state);
-        } else if (strcmp(command, "remove") == 0) {
-            handle_remove(input, uid, password, filename, dsip, dsport, &session_state);
-        } else if (strcmp(command, "list") == 0) {
-            handle_list(dsip, dsport);
-        } else if (strcmp(command, "versions") == 0) {
-            handle_versions(input, filename, dsip, dsport);
-        } else {
-            printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list, versions\n");
-        }
-    }
-
-    return 0;
 }
