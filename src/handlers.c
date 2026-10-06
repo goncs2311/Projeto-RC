@@ -202,7 +202,7 @@ void handle_remove(const char *input, const char *uid, const char *password, cha
         } else if (strncmp(response, "RRM WRP", 7) == 0) {
             printf("Incorrect password.\n");
         } else if (strncmp(response, "RRM NOK", 7) == 0) {
-            printf("Resource not found.\n");
+            printf("Resource not found.\n");  //TO DO
         } else if (strncmp(response, "RRM ERR", 7) == 0) {
             printf("Syntax error in remove.\n");
         }
@@ -221,10 +221,12 @@ void handle_list(const char *dsip, const char *dsport) {
 
             char *resources = response + 7;
             char *token = strtok(resources, " \n");
+            int i = 1;
 
             while (token != NULL) {
-                printf("%s\n", token);
+                printf("%d: %s\n", i, token);
                 token = strtok(NULL, " \n");
+                i++;
             }
         } else if (strncmp(response, "RLS NOK", 7) == 0) {
             printf("No resources available.\n");
@@ -253,7 +255,7 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
 
     if (send_receive_tcp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RVR OK", 6) == 0) {
-             char *versions = response + 7;
+            char *versions = response + 7;
             char *token = strtok(versions, " \n");
 
             printf("%-8s %-10s %-12s %-22s %s\n",

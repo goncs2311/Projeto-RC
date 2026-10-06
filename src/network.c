@@ -211,6 +211,8 @@ int send_receive_tcp(const char* dsip, const char* dsport, const char* message, 
         return -1;
     }
 
+    // verificar que foi enviado tudo
+
     n = write(fd, message, strlen(message));
     if (n == -1) {
         perror("write");
@@ -219,6 +221,8 @@ int send_receive_tcp(const char* dsip, const char* dsport, const char* message, 
         printf("Error sending message.\n");
         return -1; 
     }
+
+    //ler ate \n
 
     n = read(fd, response, response_size - 1);
     if (n == -1) {

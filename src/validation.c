@@ -24,7 +24,7 @@ int valid_password(const char *password) {
 
     // Only letters, digits, '-' and '_'
     for (int i = 0; i < 8; i++) {
-        if (!isalnum((unsigned char)password[i])) {
+        if (!isalnum((unsigned char)password[i]) && password[i] != '-' && password[i] != '_') {
             return 0;
         }
     }
