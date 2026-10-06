@@ -1,18 +1,4 @@
-#include <unistd.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <ctype.h>
-#include <string.h>
-#include <stdio.h>
-#include <errno.h>
-
-#include "network.h"
-#include "validation.h"
-#include "handlers.h"
+#include "includes.h"
 
 // IP do lab: 192.168.1.1
 // IP fora do lab: tejo.tecnico.ulisboa.pt

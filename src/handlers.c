@@ -1,7 +1,4 @@
-#include "handlers.h"
-
-#include <stdio.h>
-#include <string.h>
+#include "includes.h"
 
 void handle_login(const char *input, char *uid, char *password, int tcpport, const char *dsip, const char *dsport, int *session_state) {
     char msg[128];

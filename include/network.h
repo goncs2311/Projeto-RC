@@ -1,9 +1,7 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 
-#include <stddef.h>
-#include <sys/select.h>
-#include <sys/socket.h>
+#include "includes.h"
 
 #define TIMEOUT 5 // Timeout in seconds for UDP and TCP operations
 

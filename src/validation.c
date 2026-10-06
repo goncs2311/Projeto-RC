@@ -1,7 +1,4 @@
-#include "validation.h"
-
-#include <ctype.h>
-#include <string.h>
+#include "includes.h"
 
 int valid_filename(const char *filename) {
     int len = strlen(filename);

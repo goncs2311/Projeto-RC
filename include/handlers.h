@@ -1,8 +1,7 @@
 #ifndef HANDLERS_H
 #define HANDLERS_H
 
-#include "network.h"
-#include "validation.h"
+#include "includes.h"
 
 #define LOGGED_OUT 0
 #define LOGGED_IN 1

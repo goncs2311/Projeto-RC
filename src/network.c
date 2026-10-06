@@ -1,15 +1,4 @@
-#include "network.h"
-
-#include <stdio.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/time.h>
-#include <fcntl.h>
-#include <sys/select.h>
+#include "includes.h"
 
 // Function to set socket timeout for both send and receive operations
 
