@@ -1,12 +1,24 @@
 #include "includes.h"
 
 void handle_login(const char *input, char *uid, char *password, int tcpport, const char *dsip, const char *dsport, int *session_state) {
+    char new_uid[10];
+    char new_password[20];
     char msg[128];
     char response[128];
     char extra[2];
 
-    if (sscanf(input, "%*s %9s %19s %1s", uid, password, extra) != 2) {
+    if (sscanf(input, "%*s %9s %19s %1s",new_uid, new_password, extra) != 2) {
         printf("Syntax error in login.\n");
+        return;
+    }
+
+    if (!valid_uid(new_uid)) {
+        printf("Invalid UID.\n");
+        return;
+    }
+
+    if (!valid_password(new_password)) {
+        printf("Invalid password.\n");
         return;
     }
 
@@ -15,16 +27,20 @@ void handle_login(const char *input, char *uid, char *password, int tcpport, con
         return;
     }
 
-    snprintf(msg, sizeof(msg), "LIN %s %s %d\n", uid, password, tcpport);
+    snprintf(msg, sizeof(msg), "LIN %s %s %d\n", new_uid, new_password, tcpport);
 
     if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RLI OK", 6) == 0) {
             *session_state = LOGGED_IN;
+            strcpy(uid, new_uid);
+            strcpy(password, new_password);
             printf("Successful login.\n");
         } else if (strncmp(response, "RLI NOK", 7) == 0) {
             printf("Incorrect login attempt.\n");
         } else if (strncmp(response, "RLI REG", 7) == 0) {
             *session_state = LOGGED_IN;
+            strcpy(uid, new_uid);
+            strcpy(password, new_password);
             printf("New user registered.\n");
         } else if (strncmp(response, "RLI ERR", 7) == 0) {
             printf("Syntax error in login.\n");

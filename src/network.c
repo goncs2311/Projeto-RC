@@ -1,7 +1,6 @@
 #include "includes.h"
 
 // Function to set socket timeout for both send and receive operations
-
 static int set_socket_timeout(int fd) {
     struct timeval timeout;
 
@@ -112,7 +111,6 @@ static int connect_with_timeout(int fd, const struct sockaddr *addr,
 }
 
 // Function to send a message to the server and receive a response using UDP
-
 int send_receive_udp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
     int fd, errcode;
     ssize_t n;
@@ -179,7 +177,6 @@ int send_receive_udp(const char* dsip, const char* dsport, const char* message, 
 }
 
 // Function to send a message to the server and receive a response using TCP
-
 int send_receive_tcp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
     int fd, errcode;
     ssize_t n;

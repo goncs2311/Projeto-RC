@@ -1,5 +1,37 @@
 #include "includes.h"
 
+int valid_uid(const char *uid) {
+    int len = strlen(uid);
+
+    if (len != 6) {
+        return 0;
+    }
+
+    // Only digits
+    for (int i = 0; i < len; i++) {
+        if (!isdigit((unsigned char)uid[i])) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+int valid_password(const char *password) {
+    if (strlen(password) != 8) {
+        return 0;
+    }
+
+    // Only letters, digits, '-' and '_'
+    for (int i = 0; i < 8; i++) {
+        if (!isalnum((unsigned char)password[i])) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 int valid_filename(const char *filename) {
     int len = strlen(filename);
 
