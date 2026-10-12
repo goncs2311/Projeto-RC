@@ -37,6 +37,7 @@ int main(int argc, char *argv[]) {
     char input[128];
     char command[20]; 
     char uid[10];
+    char uid_peer[10];
     char password[20];
     char filename[128];
     char label[21];
@@ -69,9 +70,10 @@ int main(int argc, char *argv[]) {
         } else if (strcmp(command, "list") == 0) {
             handle_list(dsip, dsport);
         } else if (strcmp(command, "versions") == 0) {
-            handle_versions(input, filename, dsip, dsport);
+            handle_versions(input, filename, dsip, dsport, uid_peer);
+            printf("Peer UID for file %s: %s\n", filename, uid_peer);
         } else if (strcmp(command, "get") == 0) {
-            handle_get(input, filename, uid, dsip, dsport);
+            handle_get(input, filename, uid_peer, dsip, dsport);
         } else {
             printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list, versions, get\n");
         }

@@ -242,7 +242,7 @@ void handle_list(const char *dsip, const char *dsport) {
     }
 }
 
-void handle_versions(const char *input, char *filename, const char *dsip, const char *dsport) {
+void handle_versions(const char *input, char *filename, const char *dsip, const char *dsport, char *uid_peer) {
     char msg[512];
     char response[512];
     char extra[2];
@@ -267,6 +267,8 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
             printf("%-8s %-10s %-12s %-22s %s\n",
                 "UID", "FSize", "Label", "Publication Time", "Status");
 
+            bool uid_peer_not_set = true;
+
             while (token != NULL) {
 
                 char *uid = token;
@@ -283,7 +285,17 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
                 printf("%-8s %-10s %-12s %-22s %s\n",
                     uid, fsize, label, publication_time, availability);
 
+                if (uid_peer_not_set && strcmp(availability, "AVL") == 0) {
+                    strncpy(uid_peer, uid, 10);
+                    uid_peer_not_set = false;
+                }
+
                 token = strtok(NULL, " \n");
+            }
+
+            if (uid_peer_not_set) {
+                uid_peer[0] = '0';  // TODO
+                uid_peer[1] = '\0';
             }
         } else if (strncmp(response, "RVR NOK", 7) == 0) {
             printf("No peer available for such resource: %s.\n", filename);
@@ -294,7 +306,7 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
     }
 }
 
-void handle_get(const char *input, char *filename, const char *uid, const char *dsip, const char *dsport) {
+void handle_get(const char *input, char *filename, const char *uid_peer, const char *dsip, const char *dsport) {
     char msg[512];
     char response[512];
     char extra[2];
@@ -309,7 +321,15 @@ void handle_get(const char *input, char *filename, const char *uid, const char *
         return;
     }
 
-    snprintf(msg, sizeof(msg), "WHR %s %s\n", filename, uid);
+    if (strlen(uid_peer) == 0) {
+        printf("Please enter versions of the file %s command to get the peer UID.\n", filename);
+        return;
+    } else if (strcmp(uid_peer, "0") == 0) {
+        printf("No peer available for such resource: %s.\n", filename);
+        return;
+    }
+
+    snprintf(msg, sizeof(msg), "WHR %s %s\n", filename, uid_peer);
 
     if(send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RWH OK", 6) == 0) {
@@ -323,6 +343,8 @@ void handle_get(const char *input, char *filename, const char *uid, const char *
 
                 long file_size = 0;
                 
+                // if (send_receive_tcp_peer(peer_ip, peer_port, msg, response, sizeof(response), filename, &file_size) == 0) {
+                // Erro: connect (ao servidor)
                 if (download_file(peer_ip, peer_port, filename, &file_size) == 0) {
                     printf("File downloaded successfully: %s (%ld bytes)\n", filename, file_size);
                 } else {
