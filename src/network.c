@@ -1,5 +1,65 @@
 #include "includes.h"
 
+static int write_all(int fd, const char *buf, size_t size) {
+    size_t total = 0;
+    ssize_t bytes_written;
+
+    while (total < size) {
+        bytes_written = write(fd, buf + total, size - total);
+
+        if (bytes_written < 0) {
+            if (errno == EINTR) {
+                continue; // Interrupted by signal, retry
+            }
+            perror("write");
+            return -1; // Error occurred
+        }
+        total += bytes_written;
+
+        if (bytes_written == 0) {
+            return -1; // Connection closed unexpectedly
+        }
+    }
+
+    return 0; // Success
+}
+
+static int read_line(int fd, char *buf, size_t size) {
+    size_t total = 0;
+    char c;
+    ssize_t n_read;
+
+    if (size < 2) {
+        return -1;
+    }
+
+    while (total < size - 1) {
+        n_read = read(fd, &c, 1);
+
+        if (n_read < 0) {
+            if (errno == EINTR) {
+                continue;  // Interrupted by signal, retry
+            }
+            perror("read");
+            return -1;  // Error occurred
+        }
+
+        if (n_read == 0) {
+            break;  // Connection closed
+        }
+
+        buf[total++] = c;
+
+        if (c == '\n') {
+            buf[total] = '\0';
+            return (int)total;   // Return number of bytes read
+        }
+    }
+
+    buf[total] = '\0';
+    return -1; // Message too long or connection closed before newline
+}
+
 // Function to set socket timeout for both send and receive operations
 static int set_socket_timeout(int fd) {
     struct timeval timeout;
@@ -211,22 +271,16 @@ int send_receive_tcp(const char* dsip, const char* dsport, const char* message, 
         return -1;
     }
 
-    // verificar que foi enviado tudo
-
-    n = write(fd, message, strlen(message));
+    n = write_all(fd, message, strlen(message));
     if (n == -1) {
-        perror("write");
         freeaddrinfo(res);
         close(fd);
         printf("Error sending message.\n");
         return -1; 
     }
 
-    //ler ate \n
-
-    n = read(fd, response, response_size - 1);
+    n = read_line(fd, response, response_size);
     if (n == -1) {
-        perror("read");
         freeaddrinfo(res);
         close(fd);
         printf("Error receiving response.\n");
@@ -234,9 +288,6 @@ int send_receive_tcp(const char* dsip, const char* dsport, const char* message, 
     }
 
     response[n] = '\0';
-
-    // é necessário???
-    //write(1, response, n); // write the response to stdout
 
     freeaddrinfo(res);
     close(fd);
