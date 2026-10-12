@@ -83,7 +83,7 @@ static int set_socket_timeout(int fd) {
 }
 
 
-int download_file_tcp(const char *peer_ip, const char *peer_port, const char *filename, long *file_size) {
+int download_file(const char *peer_ip, const char *peer_port, const char *filename, long *file_size) {
     int fd, errcode;
     int n;
     struct addrinfo hints, *res;

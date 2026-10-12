@@ -321,9 +321,9 @@ void handle_get(const char *input, char *filename, const char *uid, const char *
 
                 snprintf(msg, sizeof(msg), "GET %s\n", filename);
 
-                long file_size;
+                long file_size = 0;
                 
-                if (download_file(peer_ip, peer_port, filename, file_size) == 0) {
+                if (download_file(peer_ip, peer_port, filename, &file_size) == 0) {
                     printf("File downloaded successfully: %s (%ld bytes)\n", filename, file_size);
                 } else {
                     printf("Failed to download file: %s\n", filename);
