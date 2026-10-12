@@ -82,94 +82,6 @@ static int set_socket_timeout(int fd) {
     return 0;
 }
 
-static int connect_with_timeout(int fd, const struct sockaddr *addr,
-                                socklen_t addrlen) {
-
-    int flags;
-    int result;
-    int error;
-    socklen_t error_size = sizeof(error);
-
-    struct timeval timeout;
-    fd_set writefds;
-
-    // Get current socket flags
-    flags = fcntl(fd, F_GETFL, 0);
-    if (flags == -1) {
-        perror("fcntl");
-        return -1;
-    }
-
-    // Set socket to non-blocking
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-        perror("fcntl");
-        return -1;
-    }
-
-    // Start connection
-    result = connect(fd, addr, addrlen);
-
-    if (result == 0) {
-        // Connection established immediately
-        fcntl(fd, F_SETFL, flags);
-        return 0;
-    }
-
-    if (errno != EINPROGRESS) {
-        perror("connect");
-        fcntl(fd, F_SETFL, flags);
-        return -1;
-    }
-
-    // Wait for the socket to become writable
-    FD_ZERO(&writefds);
-    FD_SET(fd, &writefds);
-
-    timeout.tv_sec = TIMEOUT;
-    timeout.tv_usec = 0;
-
-    result = select(fd + 1, NULL, &writefds, NULL, &timeout);
-
-    if (result == 0) {
-        printf("Timeout: connection to server took too long.\n");
-        fcntl(fd, F_SETFL, flags);
-        return -1;
-    }
-
-    if (result == -1) {
-        if (errno == EINTR) {
-            printf("select interrupted.\n");
-        } else {
-            perror("select");
-        }
-
-        fcntl(fd, F_SETFL, flags);
-        return -1;
-    }
-
-    // Check if the connection actually succeeded
-    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &error_size) == -1) {
-        perror("getsockopt");
-        fcntl(fd, F_SETFL, flags);
-        return -1;
-    }
-
-    if (error != 0) {
-        errno = error;
-        perror("connect");
-        fcntl(fd, F_SETFL, flags);
-        return -1;
-    }
-
-    // Restore blocking mode
-    if (fcntl(fd, F_SETFL, flags) == -1) {
-        perror("fcntl");
-        return -1;
-    }
-
-    return 0;
-}
-
 // Function to send a message to the server and receive a response using UDP
 int send_receive_udp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
     int fd, errcode;
@@ -264,10 +176,10 @@ int send_receive_tcp(const char* dsip, const char* dsport, const char* message, 
         return -1; 
     }
 
-   if (connect_with_timeout(fd, res->ai_addr, res->ai_addrlen) == -1) {
+    if (connect(fd, res->ai_addr, res->ai_addrlen) == -1) {
+        perror("connect");
         freeaddrinfo(res);
         close(fd);
-        printf("Error connecting to server.\n");
         return -1;
     }
 

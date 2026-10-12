@@ -202,7 +202,7 @@ void handle_remove(const char *input, const char *uid, const char *password, cha
         } else if (strncmp(response, "RRM WRP", 7) == 0) {
             printf("Incorrect password.\n");
         } else if (strncmp(response, "RRM NOK", 7) == 0) {
-            printf("Resource not found.\n");  //TO DO
+            printf("Resource was not published by this user.\n");
         } else if (strncmp(response, "RRM ERR", 7) == 0) {
             printf("Syntax error in remove.\n");
         }
