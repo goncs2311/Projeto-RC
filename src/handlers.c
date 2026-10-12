@@ -44,6 +44,7 @@ void handle_login(const char *input, char *uid, char *password, int tcpport, con
             printf("New user registered.\n");
         } else if (strncmp(response, "RLI ERR", 7) == 0) {
             printf("Syntax error in login.\n");
+            printf("Usage: login <uid> <password>\n");
         }
     }
 }
@@ -72,6 +73,7 @@ void handle_logout(const char *uid, const char *password, const char *dsip, cons
             printf("User not registered.\n");
         } else if (strncmp(response, "RLO ERR", 7) == 0) {
             printf("Sintax error in logout.\n");
+            printf("Usage: logout\n");
         }
     }
 }
@@ -99,6 +101,7 @@ void handle_unregister(const char *uid, const char *password, const char *dsip, 
             printf("Incorrect unregister attempt.\n");
         } else if (strncmp(response, "RUR ERR", 7) == 0) {
             printf("Sintax error in unregister.\n");
+            printf("Usage: unregister\n");
         }
     }
 }
@@ -165,6 +168,7 @@ void handle_publish(const char *input, const char *uid, const char *password, ch
             printf("Unsuccessful publication.\n");
         } else if (strncmp(response, "RPB ERR", 7) == 0) {
             printf("Syntax error in publish.\n");
+            printf("Usage: publish <filename> <label>\n");
         }
     }
 }
@@ -205,6 +209,7 @@ void handle_remove(const char *input, const char *uid, const char *password, cha
             printf("Resource was not published by this user.\n");
         } else if (strncmp(response, "RRM ERR", 7) == 0) {
             printf("Syntax error in remove.\n");
+            printf("Usage: remove <filename>\n");
         }
     }
 }
@@ -232,6 +237,7 @@ void handle_list(const char *dsip, const char *dsport) {
             printf("No resources available.\n");
         } else if (strncmp(response, "RLS ERR", 7) == 0) {
             printf("Syntax error in list.\n");
+            printf("Usage: list\n");
         }
     }
 }
@@ -283,6 +289,7 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
             printf("No peer available for such resource: %s.\n", filename);
         } else if (strncmp(response, "RVR ERR", 7) == 0) {
             printf("Syntax error in versions.\n");
+            printf("Usage: versions <filename>\n");
         }
     }
 }

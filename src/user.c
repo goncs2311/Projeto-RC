@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
         } else if (strcmp(command, "versions") == 0) {
             handle_versions(input, filename, dsip, dsport);
         } else {
-            printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list, versions\n");
+            printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list, versions, get\n");
         }
     }
 
