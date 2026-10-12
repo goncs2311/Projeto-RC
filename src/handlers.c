@@ -293,3 +293,50 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
         }
     }
 }
+
+void handle_get(const char *input, char *filename, const char *uid, const char *dsip, const char *dsport) {
+    char msg[512];
+    char response[512];
+    char extra[2];
+
+    if (sscanf(input, "%*s %127s %1s", filename, extra) != 1) {
+        printf("Syntax error in get.\n");
+        return;
+    }
+
+    if (!valid_filename(filename)) {
+        printf("Invalid filename.\n");
+        return;
+    }
+
+    snprintf(msg, sizeof(msg), "WHR %s %s\n", filename, uid);
+
+    if(send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+        if (strncmp(response, "RWH OK", 6) == 0) {
+            char *peer_ip = strtok(response + 7, " \n");
+            char *peer_port = strtok(NULL, " \n");
+
+            if (peer_ip != NULL && peer_port != NULL) {
+                printf("Peer found: %s:%s\n", peer_ip, peer_port);
+
+                snprintf(msg, sizeof(msg), "GET %s\n", filename);
+
+                long file_size;
+                
+                if (download_file(peer_ip, peer_port, filename, file_size) == 0) {
+                    printf("File downloaded successfully: %s (%ld bytes)\n", filename, file_size);
+                } else {
+                    printf("Failed to download file: %s\n", filename);
+                    
+                }
+            } else {
+                printf("No peer available for such resource: %s.\n", filename);
+            }
+        } else if (strncmp(response, "RWH NOK", 7) == 0) {
+            printf("No peer or resource available.\n");
+        } else if (strncmp(response, "RWH ERR", 7) == 0) {
+            printf("Syntax error in get.\n");
+            printf("Usage: get <filename>\n");
+        }
+    }
+}

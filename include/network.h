@@ -9,4 +9,6 @@ int send_receive_udp(const char* dsip, const char* dsport, const char* message, 
 
 int send_receive_tcp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size);
 
+int download_file(const char* dsip, const char* dsport, const char* filename, const char* local_path);
+
 #endif // NETWORK_H

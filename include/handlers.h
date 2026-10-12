@@ -13,5 +13,6 @@ void handle_publish(const char *input, const char *uid, const char *password, ch
 void handle_remove(const char *input, const char *uid, const char *password, char *filename, const char *dsip, const char *dsport, int *session_state);
 void handle_list(const char *dsip, const char *dsport); 
 void handle_versions(const char *input, char *filename, const char *dsip, const char *dsport);
+void handle_get(const char *input, char *filename, const char *uid, const char *dsip, const char *dsport);
 
 #endif // HANDLERS_H

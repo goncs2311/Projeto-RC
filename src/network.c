@@ -82,6 +82,161 @@ static int set_socket_timeout(int fd) {
     return 0;
 }
 
+
+int download_file_tcp(const char *peer_ip, const char *peer_port, const char *filename, long *file_size) {
+    int fd, errcode;
+    int n;
+    struct addrinfo hints, *res;
+    char msg[512];
+    char response[512];
+    char *size_str;
+    long received_size;
+    FILE *file;
+    char buffer[4096];
+    long remaining;
+    ssize_t bytes_read;
+
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    if (set_socket_timeout(fd) < 0) {
+        close(fd);
+        return -1;
+    }
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    errcode = getaddrinfo(peer_ip, peer_port, &hints, &res);
+    if (errcode != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(errcode));
+        close(fd);
+        return -1;
+    }
+
+    if (connect(fd, res->ai_addr, res->ai_addrlen) == -1) {
+        perror("connect");
+        freeaddrinfo(res);
+        close(fd);
+        return -1;
+    }
+
+    freeaddrinfo(res);
+
+    /* Send GET request */
+    snprintf(msg, sizeof(msg), "GET %s\n", filename);
+
+    if (write_all(fd, msg, strlen(msg)) == -1) {
+        fprintf(stderr, "Error sending GET request.\n");
+        close(fd);
+        return -1;
+    }
+
+    /* Receive the response line */
+    n = read_line(fd, response, sizeof(response));
+    if (n == -1) {
+        fprintf(stderr, "Error receiving response from peer.\n");
+        close(fd);
+        return -1;
+    }
+
+    if (strncmp(response, "RGT NOK", 7) == 0) {
+        printf("Resource not available: %s.\n", filename);
+        close(fd);
+        return -1;
+    }
+
+    if (strncmp(response, "RGT ERR", 7) == 0) {
+        printf("Syntax error in get.\n");
+        close(fd);
+        return -1;
+    }
+
+    if (strncmp(response, "RGT OK ", 7) != 0) {
+        fprintf(stderr, "Invalid response from peer.\n");
+        close(fd);
+        return -1;
+    }
+
+    /* Extract the advertised file size */
+    size_str = response + 7;
+    received_size = strtol(size_str, NULL, 10);
+
+    if (received_size < 0 || received_size > 10000000) {
+        fprintf(stderr, "Invalid file size received.\n");
+        close(fd);
+        return -1;
+    }
+
+    /* Create the destination file */
+    file = fopen(filename, "wb");
+    if (file == NULL) {
+        perror("fopen");
+        close(fd);
+        return -1;
+    }
+
+    /* Receive exactly the advertised number of bytes */
+    remaining = received_size;
+
+    //read all TODO
+    while (remaining > 0) {
+        size_t to_read = sizeof(buffer);
+        if (remaining < (long)to_read) {
+            to_read = (size_t)remaining;
+        }
+
+        bytes_read = read(fd, buffer, to_read);
+
+        if (bytes_read < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            perror("read");
+            fclose(file);
+            remove(filename);
+            close(fd);
+            return -1;
+        }
+
+        if (bytes_read == 0) {
+            fprintf(stderr, "Connection closed before file was fully received.\n");
+            fclose(file);
+            remove(filename);
+            close(fd);
+            return -1;
+        }
+
+        if (fwrite(buffer, 1, (size_t)bytes_read, file) !=
+            (size_t)bytes_read) {
+            perror("fwrite");
+            fclose(file);
+            remove(filename);
+            close(fd);
+            return -1;
+        }
+
+        remaining -= bytes_read;
+    }
+
+    if (fclose(file) != 0) {
+        perror("fclose");
+        remove(filename);
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+
+    *file_size = received_size;
+    return 0;
+}
+
+
 // Function to send a message to the server and receive a response using UDP
 int send_receive_udp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
     int fd, errcode;
