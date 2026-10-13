@@ -236,14 +236,8 @@ int download_file(const char *peer_ip, const char *peer_port, const char *filena
     return 0;
 }
 
-
-// Function to send a message to the server and receive a response using UDP
-int send_receive_udp(const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
-    int fd, errcode;
-    ssize_t n;
-    socklen_t addrlen;
-    struct addrinfo hints, *res;    // hints are the address info from the user, res is the address info from the server
-    struct sockaddr_in addr;    // address from whoever sent the message (server or client)
+int open_udp_socket(const char* dsip, const char* dsport, int* sockfd) {
+    int fd;
 
     //starting UDP socket
     fd= socket(AF_INET, SOCK_DGRAM, 0);
@@ -257,6 +251,17 @@ int send_receive_udp(const char* dsip, const char* dsport, const char* message, 
         return -1;
     }
 
+    return fd;
+}
+
+// Function to send a message to the server and receive a response using UDP
+int send_receive_udp(int fd, const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
+    int errcode;
+    ssize_t n;
+    socklen_t addrlen;
+    struct addrinfo hints, *res;    // hints are the address info from the user, res is the address info from the server
+    struct sockaddr_in addr;    // address from whoever sent the message (server or client)
+
     // setting up the hints for getaddrinfo
     memset(&hints, 0, sizeof(hints));
     hints.ai_family=AF_INET;
@@ -265,7 +270,6 @@ int send_receive_udp(const char* dsip, const char* dsport, const char* message, 
     //getting the server address
     errcode=getaddrinfo(dsip, dsport, &hints, &res);
     if (errcode!=0) {
-        close(fd);
         printf("erro a obter o endereço do servidor.\n");
         return -1; 
     }
@@ -275,7 +279,6 @@ int send_receive_udp(const char* dsip, const char* dsport, const char* message, 
     if (n==-1) {
         perror("sendto");
         freeaddrinfo(res);
-        close(fd);
         printf("erro a enviar a mensagem.\n");
         return -1;
     }
@@ -291,14 +294,12 @@ int send_receive_udp(const char* dsip, const char* dsport, const char* message, 
         }
 
         freeaddrinfo(res);
-        close(fd);
         return -1;
     }
 
     response[n] = '\0';
 
     freeaddrinfo(res);
-    close(fd);
 
     return 0;
 }

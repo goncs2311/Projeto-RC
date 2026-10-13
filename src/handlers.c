@@ -292,11 +292,6 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
 
                 token = strtok(NULL, " \n");
             }
-
-            if (uid_peer_not_set) {
-                uid_peer[0] = '0';  // TODO
-                uid_peer[1] = '\0';
-            }
         } else if (strncmp(response, "RVR NOK", 7) == 0) {
             printf("No peer available for such resource: %s.\n", filename);
         } else if (strncmp(response, "RVR ERR", 7) == 0) {
@@ -324,14 +319,11 @@ void handle_get(const char *input, char *filename, const char *uid_peer, const c
     if (strlen(uid_peer) == 0) {
         printf("Please enter versions of the file %s command to get the peer UID.\n", filename);
         return;
-    } else if (strcmp(uid_peer, "0") == 0) {
-        printf("No peer available for such resource: %s.\n", filename);
-        return;
     }
 
     snprintf(msg, sizeof(msg), "WHR %s %s\n", filename, uid_peer);
 
-    if(send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if(send_receive_udp(fd, dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RWH OK", 6) == 0) {
             char *peer_ip = strtok(response + 7, " \n");
             char *peer_port = strtok(NULL, " \n");

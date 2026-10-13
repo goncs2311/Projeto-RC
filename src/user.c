@@ -42,6 +42,12 @@ int main(int argc, char *argv[]) {
     char filename[128];
     char label[21];
     int session_state = LOGGED_OUT;
+    int fd;
+
+    if (open_udp_socket(dsip, dsport, &fd) < 0) {
+        fprintf(stderr, "Error opening UDP socket\n");
+        exit(1);
+    }
 
     while (1) {
         printf("> ");
@@ -59,6 +65,7 @@ int main(int argc, char *argv[]) {
             handle_unregister(uid, password, dsip, dsport, &session_state);
         } else if (strcmp(command, "exit") == 0) {
             if (session_state == LOGGED_OUT) {
+                close(fd);
                 break;
             } else {
                 printf("Please logout first.\n");
