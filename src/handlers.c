@@ -1,6 +1,6 @@
 #include "includes.h"
 
-void handle_login(const char *input, char *uid, char *password, int tcpport, const char *dsip, const char *dsport, int *session_state) {
+void handle_login(const char *input, char *uid, char *password, int tcpport, const char *dsip, const char *dsport, int *session_state, int *fd) {
     char new_uid[10];
     char new_password[20];
     char msg[128];
@@ -29,7 +29,7 @@ void handle_login(const char *input, char *uid, char *password, int tcpport, con
 
     snprintf(msg, sizeof(msg), "LIN %s %s %d\n", new_uid, new_password, tcpport);
 
-    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(fd, dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RLI OK", 6) == 0) {
             *session_state = LOGGED_IN;
             strcpy(uid, new_uid);
@@ -49,7 +49,7 @@ void handle_login(const char *input, char *uid, char *password, int tcpport, con
     }
 }
 
-void handle_logout(const char *uid, const char *password, const char *dsip, const char *dsport, int *session_state) {
+void handle_logout(const char *uid, const char *password, const char *dsip, const char *dsport, int *session_state, int *fd) {
     char msg[128];
     char response[128];
 
@@ -61,7 +61,7 @@ void handle_logout(const char *uid, const char *password, const char *dsip, cons
     // Protocolo: LOU UID password
     snprintf(msg, sizeof(msg), "LOU %s %s\n", uid, password);         
     
-    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(fd, dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RLO OK", 6) == 0) {
             *session_state = LOGGED_OUT;
             printf("Successful logout.\n");
@@ -78,7 +78,7 @@ void handle_logout(const char *uid, const char *password, const char *dsip, cons
     }
 }
 
-void handle_unregister(const char *uid, const char *password, const char *dsip, const char *dsport, int *session_state) {
+void handle_unregister(const char *uid, const char *password, const char *dsip, const char *dsport, int *session_state, int *fd) {
     char msg[128];
     char response[128];
 
@@ -89,7 +89,7 @@ void handle_unregister(const char *uid, const char *password, const char *dsip, 
         return;
     }
 
-    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(fd, dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RUR OK", 6) == 0) {
             *session_state = LOGGED_OUT;
             printf("Successful unregister.\n");
@@ -106,7 +106,7 @@ void handle_unregister(const char *uid, const char *password, const char *dsip, 
     }
 }
 
-void handle_publish(const char *input, const char *uid, const char *password, char *filename, char *label, const char *dsip, const char *dsport, int *session_state) {
+void handle_publish(const char *input, const char *uid, const char *password, char *filename, char *label, const char *dsip, const char *dsport, int *session_state, int *fd) {
     char msg[512];
     char response[128];
     char extra[2];
@@ -155,7 +155,7 @@ void handle_publish(const char *input, const char *uid, const char *password, ch
 
     snprintf(msg, sizeof(msg), "PUB %s %s %s %ld %s\n", uid, password, filename, fsize, label);
 
-    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(fd, dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RPB OK", 6) == 0) {
             printf("Successful publication.\n");
         } else if (strncmp(response, "RPB NLG", 7) == 0) {
@@ -173,7 +173,7 @@ void handle_publish(const char *input, const char *uid, const char *password, ch
     }
 }
 
-void handle_remove(const char *input, const char *uid, const char *password, char *filename, const char *dsip, const char *dsport, int *session_state) {
+void handle_remove(const char *input, const char *uid, const char *password, char *filename, const char *dsip, const char *dsport, int *session_state, int *fd) {
     char msg[512];
     char response[128];
     char extra[2];
@@ -196,7 +196,7 @@ void handle_remove(const char *input, const char *uid, const char *password, cha
 
     snprintf(msg, sizeof(msg), "REM %s %s %s\n", uid, password, filename);
 
-    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(fd, dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RRM OK", 6) == 0) {
             printf("Successful removal.\n");
         } else if (strncmp(response, "RRM NLG", 7) == 0) {
@@ -214,13 +214,13 @@ void handle_remove(const char *input, const char *uid, const char *password, cha
     }
 }
 
-void handle_list(const char *dsip, const char *dsport) {
+void handle_list(const char *dsip, const char *dsport, int *fd) {
     char msg[128];
-    char response[512];
+    char response[2024];
 
     snprintf(msg, sizeof(msg), "LST\n");
 
-    if (send_receive_udp(dsip, dsport, msg, response, sizeof(response)) == 0) {
+    if (send_receive_udp(fd, dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RLS OK", 6) == 0) {
             printf("List of resources:\n");
 
@@ -244,8 +244,10 @@ void handle_list(const char *dsip, const char *dsport) {
 
 void handle_versions(const char *input, char *filename, const char *dsip, const char *dsport, char *uid_peer) {
     char msg[512];
-    char response[512];
+    char response[1024];
     char extra[2];
+
+    uid_peer[0] = '\0';
 
     if (sscanf(input, "%*s %127s %1s", filename, extra) != 1) {
         printf("Syntax error in versions.\n");
@@ -286,11 +288,19 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
                     uid, fsize, label, publication_time, availability);
 
                 if (uid_peer_not_set && strcmp(availability, "AVL") == 0) {
-                    strncpy(uid_peer, uid, 10);
+                    strncpy(uid_peer, uid, 9);
+                    uid_peer[9] = '\0';
                     uid_peer_not_set = false;
                 }
 
                 token = strtok(NULL, " \n");
+            }
+
+            if (uid_peer[0] != '\0') {
+                printf("Peer UID for file %s: %s\n", filename, uid_peer);
+            }
+            else{
+                printf("No peer available for file %s.\n", filename);
             }
         } else if (strncmp(response, "RVR NOK", 7) == 0) {
             printf("No peer available for such resource: %s.\n", filename);
@@ -301,7 +311,7 @@ void handle_versions(const char *input, char *filename, const char *dsip, const 
     }
 }
 
-void handle_get(const char *input, char *filename, const char *uid_peer, const char *dsip, const char *dsport) {
+void handle_get(const char *input, char *filename, const char *uid_peer, const char *dsip, const char *dsport, int *fd) {
     char msg[512];
     char response[512];
     char extra[2];

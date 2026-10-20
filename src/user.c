@@ -37,17 +37,18 @@ int main(int argc, char *argv[]) {
     char input[128];
     char command[20]; 
     char uid[10];
-    char uid_peer[10];
+    char uid_peer[10] = "";
     char password[20];
     char filename[128];
     char label[21];
     int session_state = LOGGED_OUT;
     int fd;
 
-    if (open_udp_socket(dsip, dsport, &fd) < 0) {
+    if (open_udp_socket() < 0) {
         fprintf(stderr, "Error opening UDP socket\n");
         exit(1);
     }
+    fd = open_udp_socket();
 
     while (1) {
         printf("> ");
@@ -58,11 +59,11 @@ int main(int argc, char *argv[]) {
         if (sscanf(input, "%19s", command) != 1) continue;
 
         if (strcmp(command, "login") == 0) {
-            handle_login(input, uid, password, tcpport, dsip, dsport, &session_state);
+            handle_login(input, uid, password, tcpport, dsip, dsport, &session_state, &fd);
         } else if (strcmp(command, "logout") == 0) {
-            handle_logout(uid, password, dsip, dsport, &session_state);
+            handle_logout(uid, password, dsip, dsport, &session_state, &fd);
         } else if (strcmp(command, "unregister") == 0) {
-            handle_unregister(uid, password, dsip, dsport, &session_state);
+            handle_unregister(uid, password, dsip, dsport, &session_state, &fd);
         } else if (strcmp(command, "exit") == 0) {
             if (session_state == LOGGED_OUT) {
                 close(fd);
@@ -71,16 +72,15 @@ int main(int argc, char *argv[]) {
                 printf("Please logout first.\n");
             }
         } else  if (strcmp(command, "publish") == 0) {
-            handle_publish(input, uid, password, filename, label, dsip, dsport, &session_state);
+            handle_publish(input, uid, password, filename, label, dsip, dsport, &session_state, &fd);
         } else if (strcmp(command, "remove") == 0) {
-            handle_remove(input, uid, password, filename, dsip, dsport, &session_state);
+            handle_remove(input, uid, password, filename, dsip, dsport, &session_state, &fd);
         } else if (strcmp(command, "list") == 0) {
-            handle_list(dsip, dsport);
+            handle_list(dsip, dsport, &fd);
         } else if (strcmp(command, "versions") == 0) {
             handle_versions(input, filename, dsip, dsport, uid_peer);
-            printf("Peer UID for file %s: %s\n", filename, uid_peer);
         } else if (strcmp(command, "get") == 0) {
-            handle_get(input, filename, uid_peer, dsip, dsport);
+            handle_get(input, filename, uid_peer, dsip, dsport, &fd);
         } else {
             printf("Unknown command. Available commands: login, logout, unregister, exit, publish, remove, list, versions, get\n");
         }

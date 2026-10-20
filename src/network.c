@@ -45,7 +45,13 @@ static int read_line(int fd, char *buf, size_t size) {
         }
 
         if (n_read == 0) {
-            break;  // Connection closed
+            if (total > 0) {
+                buf[total] = '\0';
+                return (int)total;
+            }
+
+            errno = ECONNRESET;
+            return -1;
         }
 
         buf[total++] = c;
@@ -57,7 +63,8 @@ static int read_line(int fd, char *buf, size_t size) {
     }
 
     buf[total] = '\0';
-    return -1; // Message too long or connection closed before newline
+    errno = EMSGSIZE;
+    return -1; // Message too long
 }
 
 // Function to set socket timeout for both send and receive operations
@@ -236,7 +243,7 @@ int download_file(const char *peer_ip, const char *peer_port, const char *filena
     return 0;
 }
 
-int open_udp_socket(const char* dsip, const char* dsport, int* sockfd) {
+int open_udp_socket(void) {
     int fd;
 
     //starting UDP socket
@@ -255,7 +262,7 @@ int open_udp_socket(const char* dsip, const char* dsport, int* sockfd) {
 }
 
 // Function to send a message to the server and receive a response using UDP
-int send_receive_udp(int fd, const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
+int send_receive_udp(int *fd, const char* dsip, const char* dsport, const char* message, char* response, size_t response_size) {
     int errcode;
     ssize_t n;
     socklen_t addrlen;
@@ -275,7 +282,7 @@ int send_receive_udp(int fd, const char* dsip, const char* dsport, const char* m
     }
 
     // sending the message to the server
-    n = sendto(fd, message, strlen(message), 0, res->ai_addr, res->ai_addrlen);
+    n = sendto(*fd, message, strlen(message), 0, res->ai_addr, res->ai_addrlen);
     if (n==-1) {
         perror("sendto");
         freeaddrinfo(res);
@@ -285,7 +292,7 @@ int send_receive_udp(int fd, const char* dsip, const char* dsport, const char* m
 
     // receiving the response from the server
     addrlen=sizeof(addr);
-    n = recvfrom(fd, response, response_size - 1, 0, (struct sockaddr*)&addr, &addrlen);
+    n = recvfrom(*fd, response, response_size - 1, 0, (struct sockaddr*)&addr, &addrlen);
     if (n == -1) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             printf("Timeout: servidor nao respondeu.\n");
@@ -351,7 +358,15 @@ int send_receive_tcp(const char* dsip, const char* dsport, const char* message, 
     if (n == -1) {
         freeaddrinfo(res);
         close(fd);
-        printf("Error receiving response.\n");
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            printf("Timeout receiving response.\n");
+        } else if (errno == ECONNRESET) {
+            printf("Connection closed before receiving a response.\n");
+        } else if (errno == EMSGSIZE) {
+            printf("Response is too long.\n");
+        } else {
+            perror("read");
+        }
         return -1; 
     }
 
