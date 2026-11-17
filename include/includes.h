@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <sys/select.h>
 
 #include "network.h"
 #include "validation.h"

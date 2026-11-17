@@ -1,6 +1,6 @@
 #include "includes.h"
 
-void handle_login(const char *input, char *uid, char *password, int tcpport, const char *dsip, const char *dsport, int *session_state, int *fd) {
+void handle_login(const char *input, char *uid, char *password, const char *tcpport, const char *dsip, const char *dsport, int *session_state, int *fd) {
     char new_uid[10];
     char new_password[20];
     char msg[128];
@@ -27,7 +27,7 @@ void handle_login(const char *input, char *uid, char *password, int tcpport, con
         return;
     }
 
-    snprintf(msg, sizeof(msg), "LIN %s %s %d\n", new_uid, new_password, tcpport);
+    snprintf(msg, sizeof(msg), "LIN %s %s %s\n", new_uid, new_password, tcpport);
 
     if (send_receive_udp(fd, dsip, dsport, msg, response, sizeof(response)) == 0) {
         if (strncmp(response, "RLI OK", 6) == 0) {
@@ -326,6 +326,7 @@ void handle_get(const char *input, char *filename, const char *uid_peer, const c
         return;
     }
 
+    //TODO call versions function
     if (strlen(uid_peer) == 0) {
         printf("Please enter versions of the file %s command to get the peer UID.\n", filename);
         return;
@@ -363,4 +364,55 @@ void handle_get(const char *input, char *filename, const char *uid_peer, const c
             printf("Usage: get <filename>\n");
         }
     }
+}
+
+void handle_peer_request(int new_peer_fd, const char *uid, const char *dsip, const char *dsport, int *fd, int *session_state) {
+    char request[128];
+    char filename[128];
+    char extra[2];
+
+    // Configure socket timeout
+    if (set_socket_timeout(new_peer_fd) < 0) {
+        perror("Failed to set socket timeout");
+        return;
+    }
+
+    // Receive GET request from peer
+    int n = read_line(new_peer_fd, request, sizeof(request));
+    if (n <= 0) {
+        printf("Failed to read request from peer.\n");
+        write_all(new_peer_fd, "RGT ERR\n", 8);
+        return;
+    }
+
+    // Validate request
+    if (request[n - 1] != '\n' || strncmp(request, "GET ", 4) != 0 || 
+        sscanf(request, "%*s %127s %1s", filename, extra) != 1 || 
+        !valid_filename(filename)) {
+
+        write_all(new_peer_fd, "RGT ERR\n", 8);
+        return;
+    }
+
+    // check if user is logged in
+    if (*session_state == LOGGED_OUT) {
+        printf("User not logged in.\n");
+        write_all(new_peer_fd, "RGT NOK\n", 8);
+        return;
+    }
+
+    // Verify if the file is published and available for download
+    if (!is_file_published(uid, filename, dsip, dsport, fd)) {
+        printf("File %s is not published or not available for download.\n", filename);
+        write_all(new_peer_fd, "RGT NOK\n", 8);
+        return;
+    }
+
+    // Send requested file to peer
+    if (send_file_to_peer(new_peer_fd, filename) < 0) {
+        printf("Failed to send file to peer: %s\n", filename);
+    } else {
+        printf("File %s sent to peer successfully.\n", filename);
+    }
+    
 }

@@ -1,6 +1,6 @@
 #include "includes.h"
 
-static int write_all(int fd, const char *buf, size_t size) {
+int write_all(int fd, const char *buf, size_t size) {
     size_t total = 0;
     ssize_t bytes_written;
 
@@ -24,7 +24,7 @@ static int write_all(int fd, const char *buf, size_t size) {
     return 0; // Success
 }
 
-static int read_line(int fd, char *buf, size_t size) {
+int read_line(int fd, char *buf, size_t size) {
     size_t total = 0;
     char c;
     ssize_t n_read;
@@ -68,7 +68,7 @@ static int read_line(int fd, char *buf, size_t size) {
 }
 
 // Function to set socket timeout for both send and receive operations
-static int set_socket_timeout(int fd) {
+int set_socket_timeout(int fd) {
     struct timeval timeout;
 
     timeout.tv_sec = TIMEOUT;
@@ -378,4 +378,140 @@ int send_receive_tcp(const char* dsip, const char* dsport, const char* message, 
     return 0;
 }
 
-// send_recieve_tcp_peer
+int open_tcp_server(const char* tcpport) {
+    int fd, errcode, n;
+    struct addrinfo hints, *res;
+
+    // Create TCP socket
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (fd == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    // Allow reuse of the address
+    int reuse = 1;
+
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+                   &reuse, sizeof(reuse)) == -1) {
+        perror("setsockopt");
+        close(fd);
+        return -1;
+    }
+
+    // Configure address information
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    // Get local address
+    errcode = getaddrinfo(NULL, tcpport, &hints, &res);
+
+    if (errcode != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n",
+                gai_strerror(errcode));
+        close(fd);
+        return -1;
+    }
+
+    // Bind socket to the selected port
+    n = bind(fd, res->ai_addr, res->ai_addrlen);
+
+    freeaddrinfo(res);
+
+    if (n == -1) {
+        perror("bind");
+        close(fd);
+        return -1;
+    }
+
+    // Start listening for incoming connections
+    if (listen(fd, 5) == -1) {
+        perror("listen");
+        close(fd);
+        return -1;
+    }
+
+    return fd;
+}
+
+int send_file_to_peer(int new_peer_fd, const char *filename) {
+    FILE *file;
+    char header[64];
+    char buffer[4096];
+    long fsize;
+    long remaining;
+    size_t bytes_read;
+
+    // Open the file in binary mode
+    file = fopen(filename, "rb");
+
+    if (file == NULL) {
+        write_all(new_peer_fd, "RGT NOK\n", 8);
+        return -1;
+    }
+
+    // Determine file size
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        write_all(new_peer_fd, "RGT NOK\n", 8);
+        return -1;
+    }
+
+    fsize = ftell(file);
+
+    // Validate file size and return to the beginning
+    if (fsize < 0 || fsize > 10000000 ||
+        fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
+        write_all(new_peer_fd, "RGT NOK\n", 8);
+        return -1;
+    }
+
+    // Send response header
+    snprintf(header, sizeof(header),
+             "RGT OK %ld ", fsize);
+
+    if (write_all(new_peer_fd, header, strlen(header)) < 0) {
+        fclose(file);
+        return -1;
+    }
+
+    // Send file data
+    remaining = fsize;
+
+    while (remaining > 0) {
+
+        size_t to_read = sizeof(buffer);
+
+        if (remaining < (long)to_read)
+            to_read = (size_t)remaining;
+
+        bytes_read = fread(buffer, 1, to_read, file);
+
+        if (bytes_read == 0) {
+            fclose(file);
+            return -1;
+        }
+
+        if (write_all(new_peer_fd, buffer, bytes_read) < 0) {
+            fclose(file);
+            return -1;
+        }
+
+        remaining -= bytes_read;
+    }
+
+    fclose(file);
+
+    // Send final newline
+    if (write_all(new_peer_fd, "\n", 1) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+

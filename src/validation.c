@@ -88,3 +88,16 @@ int valid_label(const char *label) {
 
     return 1;
 }
+
+bool is_file_published(const char *filename, const char *uid, const char *dsip, const char *dsport, int *fd) {
+    char msg[128];
+    char response[128];
+
+    snprintf(msg, sizeof(msg), "WHR %s %s\n", filename, uid);
+
+    if (send_receive_udp(fd, dsip, dsport, msg, response, sizeof(response)) != 0) {
+        return false;
+    }
+
+    return strncmp(response, "RWH OK ", 7) == 0;
+}
