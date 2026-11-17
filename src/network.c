@@ -138,28 +138,32 @@ int set_socket_timeout(int fd) {
 
 int download_file(const char *peer_ip, const char *peer_port, const char *filename, long *file_size) {
     int fd, errcode;
-    int n;
     struct addrinfo hints, *res;
     char msg[512];
-    char response[512];
-    char *size_str;
+    int separator;
+    char response[4];
+    char status[4];
+    char size_str[9];
     long received_size;
     FILE *file;
     char buffer[4096];
     long remaining;
     ssize_t bytes_read;
 
+    // Create TCP socket
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd == -1) {
         perror("socket");
         return -1;
     }
 
+    // Set socket timeout
     if (set_socket_timeout(fd) < 0) {
         close(fd);
         return -1;
     }
 
+    // Configure address information
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -171,6 +175,7 @@ int download_file(const char *peer_ip, const char *peer_port, const char *filena
         return -1;
     }
 
+    // Connect to the peer
     if (connect(fd, res->ai_addr, res->ai_addrlen) == -1) {
         perror("connect");
         freeaddrinfo(res);
@@ -180,7 +185,7 @@ int download_file(const char *peer_ip, const char *peer_port, const char *filena
 
     freeaddrinfo(res);
 
-    /* Send GET request */
+    // Send GET request
     snprintf(msg, sizeof(msg), "GET %s\n", filename);
 
     if (write_all(fd, msg, strlen(msg)) == -1) {
@@ -189,51 +194,77 @@ int download_file(const char *peer_ip, const char *peer_port, const char *filena
         return -1;
     }
 
-    /* Receive the response line */
-    n = read_line(fd, response, sizeof(response));
-    if (n == -1) {
-        fprintf(stderr, "Error receiving response from peer.\n");
-        close(fd);
-        return -1;
-    }
+    // Read protocol command (RGT)
+    separator = read_token(fd, response, sizeof(response));
 
-    if (strncmp(response, "RGT NOK", 7) == 0) {
-        printf("Resource not available: %s.\n", filename);
-        close(fd);
-        return -1;
-    }
-
-    if (strncmp(response, "RGT ERR", 7) == 0) {
-        printf("Syntax error in get.\n");
-        close(fd);
-        return -1;
-    }
-
-    if (strncmp(response, "RGT OK ", 7) != 0) {
+    if (separator != ' ' || strcmp(response, "RGT") != 0) {
         fprintf(stderr, "Invalid response from peer.\n");
         close(fd);
         return -1;
     }
 
-    /* Extract the advertised file size */
-    size_str = response + 7;
+    // Read response status
+    separator = read_token(fd, status, sizeof(status));
+
+    if (separator == '\n' && strcmp(status, "NOK") == 0) {
+        printf("Resource not available: %s.\n", filename);
+        close(fd);
+        return -1;
+    }
+
+    if (separator == '\n' && strcmp(status, "ERR") == 0) {
+        printf("Syntax error in get.\n");
+        close(fd);
+        return -1;
+    }
+
+    if (separator != ' ' || strcmp(status, "OK") != 0) {
+        fprintf(stderr, "Invalid response status.\n");
+        close(fd);
+        return -1;
+    }
+
+    // Read file size
+    separator = read_token(fd, size_str, sizeof(size_str));
+
+    if (separator != ' ') {
+        fprintf(stderr, "Invalid file size field.\n");
+        close(fd);
+        return -1;
+    }
+
+    // Validate file size format 
+    for (int i = 0; size_str[i] != '\0'; i++) {
+        if (!isdigit((unsigned char)size_str[i])) {
+            fprintf(stderr, "Invalid file size format.\n");
+            close(fd);
+            return -1;
+        }
+    }
+    
+    // Convert file size to long 
     received_size = strtol(size_str, NULL, 10);
 
+    // Validate file size range 
     if (received_size < 0 || received_size > 10000000) {
         fprintf(stderr, "Invalid file size received.\n");
         close(fd);
         return -1;
     }
 
-    /* Create the destination file */
-    file = fopen(filename, "wb");
+    // Create temporary filename to avoid overwriting existing files
+    char temp_filename[256];
+    snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
+
+    // Open temporary file for writing
+    file = fopen(temp_filename, "wb");
     if (file == NULL) {
         perror("fopen");
         close(fd);
         return -1;
     }
 
-    /* Receive exactly the advertised number of bytes */
+    // Receive exactly the advertised number of bytes
     remaining = received_size;
 
     //read all TODO
@@ -251,7 +282,7 @@ int download_file(const char *peer_ip, const char *peer_port, const char *filena
             }
             perror("read");
             fclose(file);
-            remove(filename);
+            remove(temp_filename);
             close(fd);
             return -1;
         }
@@ -259,16 +290,15 @@ int download_file(const char *peer_ip, const char *peer_port, const char *filena
         if (bytes_read == 0) {
             fprintf(stderr, "Connection closed before file was fully received.\n");
             fclose(file);
-            remove(filename);
+            remove(temp_filename);
             close(fd);
             return -1;
         }
 
-        if (fwrite(buffer, 1, (size_t)bytes_read, file) !=
-            (size_t)bytes_read) {
+        if (fwrite(buffer, 1, (size_t)bytes_read, file) != (size_t)bytes_read) {
             perror("fwrite");
             fclose(file);
-            remove(filename);
+            remove(temp_filename);
             close(fd);
             return -1;
         }
@@ -276,15 +306,39 @@ int download_file(const char *peer_ip, const char *peer_port, const char *filena
         remaining -= bytes_read;
     }
 
+    // validate final newline
+    char end;
+    ssize_t n;
+
+    do {
+        n = read(fd, &end, 1);
+    } while (n < 0 && errno == EINTR);
+
+    if (n != 1 || end != '\n') {
+        fprintf(stderr, "Expected final newline after file data.\n");
+        fclose(file);
+        remove(temp_filename);
+        close(fd);
+        return -1;
+    }
+
+    // Close the temporary file
     if (fclose(file) != 0) {
         perror("fclose");
-        remove(filename);
+        remove(temp_filename);
+        close(fd);
+        return -1;
+    }
+
+    // Rename the temporary file to the final filename
+    if (rename(temp_filename, filename) != 0) {
+        perror("rename");
+        remove(temp_filename);
         close(fd);
         return -1;
     }
 
     close(fd);
-
     *file_size = received_size;
     return 0;
 }
