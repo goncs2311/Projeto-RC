@@ -1,5 +1,51 @@
 #include "includes.h"
 
+static int read_token(int fd, char *buf, size_t size) {
+    size_t total = 0;
+    char c;
+    ssize_t n_read;
+
+    if (size < 2) {
+        return -1;
+    }
+
+    while (1) {
+
+        n_read = read(fd, &c, 1);
+
+        if (n_read < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            perror("read");
+            return -1;
+        }
+
+        if (n_read == 0) {
+            return -1;
+        }
+
+        // Check if the end of the token was reached
+        if (c == ' ' || c == '\n') {
+
+            if (total == 0)
+                return -1;
+
+            buf[total] = '\0';
+
+            return c;
+        }
+
+        // Check for invalid character or buffer overflow
+        if (c == '\0' || total >= size - 1) {
+            return -1;
+        }
+
+        buf[total++] = c;
+    }
+}
+
 int write_all(int fd, const char *buf, size_t size) {
     size_t total = 0;
     ssize_t bytes_written;

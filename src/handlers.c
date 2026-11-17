@@ -402,7 +402,7 @@ void handle_peer_request(int new_peer_fd, const char *uid, const char *dsip, con
     }
 
     // Verify if the file is published and available for download
-    if (!is_file_published(uid, filename, dsip, dsport, fd)) {
+    if (!is_file_published(filename, uid, dsip, dsport, fd)) {
         printf("File %s is not published or not available for download.\n", filename);
         write_all(new_peer_fd, "RGT NOK\n", 8);
         return;
